@@ -10,6 +10,8 @@
 	<string>app.nib.Nib</string>
 	<key>CFBundleExecutable</key>
 	<string>Nib</string>
+	<key>CFBundleIconFile</key>
+	<string>Nib</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

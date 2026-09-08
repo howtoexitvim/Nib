@@ -89,7 +89,11 @@ const view = new EditorView({
       syntaxHighlighting(proseHighlight),
       editorTheme,
       ghostWriting(requestCompletion),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
+      // Cmd+/ belongs to the View menu. defaultKeymap binds it to toggleComment,
+      // which would both comment out the line and fight the menu for the chord.
+      keymap.of(
+        [...defaultKeymap, ...historyKeymap].filter((binding) => binding.key !== "Mod-/"),
+      ),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) notifyDirty(view.state.doc.toString() !== savedDoc);
       }),
@@ -125,14 +129,10 @@ function toggleMode() {
   setMode(mode === "source" ? "preview" : "source");
 }
 
-// Cmd+/ toggles, and works from either mode -- so it must live on the document,
-// not only in the editor's keymap.
-window.addEventListener("keydown", (event) => {
-  if ((event.metaKey || event.ctrlKey) && event.key === "/") {
-    event.preventDefault();
-    toggleMode();
-  }
-});
+// Cmd+/ is owned by the View menu, not bound here. Binding it in both places
+// fired the toggle twice per press, which read as a phantom third mode: source
+// -> preview -> source, but with CodeMirror's own Cmd+/ (toggle comment) also
+// firing, so the document came back wrapped in <!-- -->.
 
 installHostAPI({
   /** Replaces the buffer, e.g. when the host opens a file. */

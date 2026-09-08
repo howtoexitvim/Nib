@@ -86,3 +86,19 @@ test("the rules here match the ones shipped in ghost.js", () => {
   assert.ok(source.includes("MAX_PREFIX = 4000"), "prefix limit changed");
   assert.ok(source.includes("MAX_SUFFIX = 4000"), "suffix limit changed");
 });
+
+test("Cmd+/ is bound in exactly one place", () => {
+  // It was bound both in a window keydown listener here and as the View menu's
+  // key equivalent, so one press toggled twice -- which looked like a third,
+  // blank mode. The menu owns the chord; the web layer must not.
+  const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.equal(/addEventListener\("keydown"/.test(main), false);
+  // And CodeMirror's own Cmd+/ (toggleComment) must be filtered out, or it
+  // comments the line while the menu switches modes.
+  assert.ok(main.includes('binding.key !== "Mod-/"'));
+});
+
+test("there are exactly two modes", () => {
+  const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.ok(main.includes('setMode(mode === "source" ? "preview" : "source")'));
+});

@@ -32,6 +32,7 @@ app: web swift
 	mkdir -p $(CONTENTS)/MacOS $(CONTENTS)/Resources/web
 	cp $(BINARY) $(CONTENTS)/MacOS/Nib
 	cp Resources/Info.plist $(CONTENTS)/Info.plist
+	cp Resources/Nib.icns $(CONTENTS)/Resources/Nib.icns
 	cp web/dist/* $(CONTENTS)/Resources/web/
 	# Ad-hoc signature: without one the Keychain item is tied to nothing stable
 	# and macOS re-prompts for access on every launch.
