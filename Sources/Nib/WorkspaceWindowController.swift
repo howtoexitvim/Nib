@@ -18,7 +18,9 @@ enum EditorError: LocalizedError {
 @MainActor
 final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSMenuItemValidation {
     private let editor = EditorViewController()
-    private let sidebar = SidebarViewController()
+    private let sidebarContainer = SidebarContainerViewController()
+    /// The file tree, which most of this controller talks to directly.
+    private var sidebar: SidebarViewController { sidebarContainer.files }
     private let splitViewController = NSSplitViewController()
 
     private var workspace: Workspace?
@@ -90,6 +92,12 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
             self?.selectFile(url)
         }
         sidebar.attach(menu: makeContextMenu())
+        sidebarContainer.outline.onSelect = { [weak self] heading in
+            self?.editor.scrollToLine(heading.line)
+        }
+        editor.onOutlineChange = { [weak self] headings in
+            self?.sidebarContainer.outline.show(headings)
+        }
         editor.documentURL = { [weak self] in self?.currentFileURL }
         editor.onModeChange = { [weak self] _ in
             // Menu titles and enablement follow the mode, and AppKit only
@@ -111,7 +119,13 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     }
 
     private func makeSplitView() -> NSViewController {
-        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarContainer)
+        // A sidebar item defaults to running full height, up behind the
+        // titlebar -- which puts its first control underneath the traffic
+        // lights. Turning that off lets the toolbar own the titlebar band and
+        // the sidebar start below it, with no hardcoded inset to re-guess.
+        sidebarItem.allowsFullHeightLayout = false
+        sidebarItem.titlebarSeparatorStyle = .none
         sidebarItem.minimumThickness = 160
         sidebarItem.maximumThickness = 420
         sidebarItem.canCollapse = true
@@ -441,12 +455,14 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     }
 
     @objc func toggleOutline(_ sender: Any?) {
-        // Arrives with the outline pane, in a later commit.
-        NSSound.beep()
+        // Showing the outline is pointless while the sidebar is hidden.
+        if sidebarItem.isCollapsed { sidebarItem.animator().isCollapsed = false }
+        sidebarContainer.toggleTab()
     }
 
     @objc func toggleRenderMode(_ sender: Any?) {
         editor.toggleMode()
+
     }
 
     @objc func toggleSidebar(_ sender: Any?) {

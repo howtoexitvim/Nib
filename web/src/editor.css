@@ -93,16 +93,26 @@ body {
 
 /* ---- preview ---- */
 
+/*
+ * The scroll container is the full pane, not the text column: a container
+ * inset from the pane would put its scrollbar floating in the middle of the
+ * window instead of at the edge, where every other macOS app has it. The
+ * measure is applied to an inner wrapper instead.
+ */
 .preview {
   overflow-y: auto;
-  max-width: var(--nib-measure);
-  margin: 0 auto;
-  padding: 48px 24px 45vh;
+  padding: 0;
   line-height: 1.7;
   outline: none;
 }
 
-.preview > :first-child {
+.preview > .preview-body {
+  max-width: var(--nib-measure);
+  margin: 0 auto;
+  padding: 24px 24px 45vh;
+}
+
+.preview > .preview-body > :first-child {
   margin-top: 0;
 }
 

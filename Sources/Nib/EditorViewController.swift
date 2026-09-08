@@ -27,6 +27,8 @@ final class EditorViewController: NSViewController {
     /// it owns the toggle -- and reports every change here.
     private(set) var mode: String = "source"
     var onModeChange: ((String) -> Void)?
+    /// The document's headings changed, for the outline pane.
+    var onOutlineChange: (([Heading]) -> Void)?
 
     override func loadView() {
         let config = WKWebViewConfiguration()
@@ -155,6 +157,11 @@ final class EditorViewController: NSViewController {
         callJS("window.nib.command(\(jsString(command)), \(arg))")
     }
 
+    /// Puts the cursor on a line, for the outline pane.
+    func scrollToLine(_ line: Int) {
+        callJS("window.nib.scrollToLine(\(line))")
+    }
+
     func toggleMode() {
         callJS("window.nib.toggleMode()")
     }
@@ -225,6 +232,15 @@ final class EditorViewController: NSViewController {
                 self.mode = mode
                 onModeChange?(mode)
             }
+        case "outline":
+            let raw = body["headings"] as? [[String: Any]] ?? []
+            onOutlineChange?(raw.compactMap { entry in
+                guard let level = entry["level"] as? Int,
+                      let text = entry["text"] as? String,
+                      let line = entry["line"] as? Int
+                else { return nil }
+                return Heading(level: level, text: text, line: line)
+            })
         case "pasteImage":
             if let id = body["id"] as? Int, let data = body["data"] as? String {
                 handlePastedImage(id: id, base64: data)

@@ -12,6 +12,8 @@ import { EditorView } from "@codemirror/view";
 import { makeState } from "./state.js";
 import { renderMarkdown } from "./preview.js";
 import { documentStats } from "./wordcount.js";
+import { offsetOfLine, parseOutline } from "./outline.js";
+import { notifyOutline } from "./bridge.js";
 import { installHostAPI, notifyDirty, notifyMode } from "./bridge.js";
 import { commands } from "./commands.js";
 
@@ -48,8 +50,12 @@ function scheduleStats() {
 }
 
 function updateStats() {
-  const { words, characters } = documentStats(view.state.doc.toString());
+  const text = view.state.doc.toString();
+  const { words, characters } = documentStats(text);
   statsEl.textContent = `${words.toLocaleString()} words · ${characters.toLocaleString()} characters`;
+  // The sidebar's outline is native, so the structure is pushed to Swift
+  // rather than rendered here.
+  notifyOutline(parseOutline(text));
 }
 
 const view = new EditorView({
@@ -58,7 +64,11 @@ const view = new EditorView({
 });
 
 function renderPreview() {
-  previewEl.innerHTML = renderMarkdown(view.state.doc.toString());
+  // Wrapped so the pane itself scrolls and the text column stays centred --
+  // otherwise the scrollbar sits inside the column rather than at the window
+  // edge.
+  previewEl.innerHTML =
+    `<div class="preview-body">${renderMarkdown(view.state.doc.toString())}</div>`;
 }
 
 /** Remembers where the cursor and scroll were in the file being left. */
@@ -143,6 +153,15 @@ installHostAPI({
     }
     run(view, argument);
     view.focus();
+  },
+  /** Puts the cursor on a heading the outline was clicked on. */
+  scrollToLine(line) {
+    const offset = offsetOfLine(view.state.doc.toString(), line);
+    view.dispatch({
+      selection: { anchor: offset },
+      effects: EditorView.scrollIntoView(offset, { y: "start", yMargin: 24 }),
+    });
+    if (mode === "source") view.focus();
   },
   setMode,
   toggleMode,

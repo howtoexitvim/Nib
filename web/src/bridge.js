@@ -81,6 +81,11 @@ export function notifyMode(mode) {
   post("document", { event: "mode", mode });
 }
 
+/** Tells the host the document's heading structure, for the outline pane. */
+export function notifyOutline(headings) {
+  post("document", { event: "outline", headings });
+}
+
 /** Surface for Swift to call into. Kept to a minimum and documented here. */
 export function installHostAPI(api) {
   window.nib = Object.assign(window.nib ?? {}, api, { deliverCompletion, deliverImage });
