@@ -1,6 +1,15 @@
 import AppKit
 import UniformTypeIdentifiers
 
+/// Why a save was abandoned.
+enum EditorError: LocalizedError {
+    case unreadable
+
+    var errorDescription: String? {
+        "The editor's contents could not be read, so nothing was written."
+    }
+}
+
 /// One window, one Markdown file.
 ///
 /// File handling is deliberately plain: open, save, save-as, and a dirty flag.
@@ -86,9 +95,39 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    /// Saves to the current file, reporting whether it landed.
+    ///
+    /// Used by flows that must only proceed once the bytes are on disk, such as
+    /// closing the window.
+    private func saveAndReportSuccess() async -> Bool {
+        guard let fileURL else { return false }
+        guard let text = await editor.documentText() else {
+            presentError(EditorError.unreadable, title: "Could not save \(fileURL.lastPathComponent)")
+            return false
+        }
+        do {
+            try text.write(to: fileURL, atomically: true, encoding: .utf8)
+            editor.markSaved()
+            updateTitle()
+            NSDocumentController.shared.noteNewRecentDocumentURL(fileURL)
+            return true
+        } catch {
+            presentError(error, title: "Could not save \(fileURL.lastPathComponent)")
+            return false
+        }
+    }
+
     private func write(to url: URL) {
         Task { @MainActor in
-            let text = await editor.documentText()
+            // A failed read must abort the write. Treating it as empty text
+            // would truncate the user's file.
+            guard let text = await editor.documentText() else {
+                presentError(
+                    EditorError.unreadable,
+                    title: "Could not save \(url.lastPathComponent)"
+                )
+                return
+            }
             do {
                 try text.write(to: url, atomically: true, encoding: .utf8)
                 fileURL = url
@@ -138,8 +177,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate {
 
         switch alert.runModal() {
         case .alertFirstButtonReturn:
-            saveDocument(nil)
-            return false // the async write closes the window once it lands
+            // The write is async, so refuse the close now and perform it in the
+            // completion. The previous version returned false and never closed
+            // the window at all.
+            Task { @MainActor in
+                if await saveAndReportSuccess() { self.close() }
+            }
+            return false
         case .alertSecondButtonReturn:
             return true
         default:

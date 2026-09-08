@@ -85,16 +85,42 @@ final class EditorViewController: NSViewController {
 
     // MARK: - Editor API
 
-    func setDocument(_ text: String) {
-        callJS("window.nib.setDoc(\(jsString(text)))")
+    /// Replaces the buffer. `path` keys the editor's per-file cursor memory.
+    func setDocument(_ text: String, path: String = "") {
+        callJS("window.nib.setDoc(\(jsString(text)), \(jsString(path)))")
     }
 
-    func documentText() async -> String {
+    /// How long to wait for the page before giving up on reading the document.
+    private static let documentReadTimeout = Duration.seconds(5)
+
+    /// The editor's current text, or nil if it could not be read.
+    ///
+    /// Returning nil rather than "" matters: every caller writes this to disk,
+    /// and mapping a failure to the empty string truncated the user's file.
+    /// A timeout is needed too -- if the page never loads, the queued work
+    /// never runs and the continuation would otherwise hang forever.
+    func documentText() async -> String? {
         await withCheckedContinuation { continuation in
-            runWhenReady {
-                self.webView.evaluateJavaScript("window.nib.getDoc()") { value, _ in
-                    continuation.resume(returning: value as? String ?? "")
+            // The continuation must resume exactly once even though both the
+            // JS callback and the timeout can fire.
+            let resumed = OneShot()
+
+            runWhenReady { [weak self] in
+                guard let self else {
+                    resumed.resumeOnce(continuation, with: nil)
+                    return
                 }
+                self.webView.evaluateJavaScript("window.nib.getDoc()") { value, error in
+                    if let error {
+                        NSLog("[nib] reading the document failed: %@", String(describing: error))
+                    }
+                    resumed.resumeOnce(continuation, with: value as? String)
+                }
+            }
+
+            Task {
+                try? await Task.sleep(for: Self.documentReadTimeout)
+                resumed.resumeOnce(continuation, with: nil)
             }
         }
     }
@@ -114,7 +140,11 @@ final class EditorViewController: NSViewController {
     // MARK: - Plumbing
 
     private func callJS(_ script: String) {
-        runWhenReady { self.webView.evaluateJavaScript(script, completionHandler: nil) }
+        // [weak self]: a window closed while its page is still loading would
+        // otherwise keep this controller alive through the queue.
+        runWhenReady { [weak self] in
+            self?.webView.evaluateJavaScript(script, completionHandler: nil)
+        }
     }
 
     private func runWhenReady(_ work: @escaping () -> Void) {
@@ -166,11 +196,64 @@ final class EditorViewController: NSViewController {
 }
 
 extension EditorViewController: WKNavigationDelegate {
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        // A reload invalidates the loaded page, so queued work must wait again
+        // rather than run against a document that is being torn down.
+        isReady = false
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         isReady = true
-        pendingAfterLoad.forEach { $0() }
-        pendingAfterLoad.removeAll()
+        drainQueue()
         focusEditor()
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        handleLoadFailure(error)
+    }
+
+    func webView(
+        _ webView: WKWebView,
+        didFailProvisionalNavigation navigation: WKNavigation!,
+        withError error: Error
+    ) {
+        handleLoadFailure(error)
+    }
+
+    /// Runs queued work so no caller waits forever, then reports the failure.
+    ///
+    /// The queued closures still run: each one is responsible for coping with a
+    /// page that is not there, and a `documentText()` waiter must be released so
+    /// its continuation resolves rather than hanging until the timeout.
+    private func handleLoadFailure(_ error: Error) {
+        NSLog("[nib] the editor page failed to load: %@", String(describing: error))
+        drainQueue()
+    }
+
+    private func drainQueue() {
+        let queued = pendingAfterLoad
+        pendingAfterLoad.removeAll()
+        queued.forEach { $0() }
+    }
+}
+
+
+/// Resumes a continuation at most once.
+///
+/// `documentText()` races a JavaScript callback against a timeout; whichever
+/// arrives second must be ignored, because resuming a checked continuation
+/// twice is a runtime trap.
+private final class OneShot: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+
+    func resumeOnce(_ continuation: CheckedContinuation<String?, Never>, with value: String?) {
+        lock.lock()
+        let alreadyDone = done
+        done = true
+        lock.unlock()
+        guard !alreadyDone else { return }
+        continuation.resume(returning: value)
     }
 }
 
