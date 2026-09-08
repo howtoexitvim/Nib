@@ -41,11 +41,19 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     init() {
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1060, height: 720),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            // No .fullSizeContentView: the content is meant to sit *below* the
+            // titlebar, not run up through it. With it on and a transparent
+            // titlebar, the editor pane owned the strip across the top and
+            // there was nothing there to drag the window by -- only the
+            // sidebar, which paints that area itself, appeared draggable.
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
-        window.titlebarAppearsTransparent = true
+        // Opaque, so the titlebar reads as one continuous bar across the whole
+        // window the way Typora's does, rather than as two differently
+        // coloured halves meeting at the split divider.
+        window.titlebarAppearsTransparent = false
         window.titleVisibility = .visible
         window.backgroundColor = .textBackgroundColor
         window.isMovableByWindowBackground = true
@@ -149,6 +157,8 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         // titlebar -- which puts its first control underneath the traffic
         // lights. Turning that off lets the toolbar own the titlebar band and
         // the sidebar start below it, with no hardcoded inset to re-guess.
+        // The sidebar stops at the titlebar rather than running up behind it,
+        // which is what keeps the bar unbroken across the full width.
         sidebarItem.allowsFullHeightLayout = false
         sidebarItem.titlebarSeparatorStyle = .none
         sidebarItem.minimumThickness = 160

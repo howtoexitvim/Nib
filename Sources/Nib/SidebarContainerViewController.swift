@@ -37,14 +37,9 @@ final class SidebarContainerViewController: NSViewController {
         root.addSubview(container)
 
         NSLayoutConstraint.activate([
-            // Pinned to the safe area, not to the top of the view: a sidebar
-            // split item draws up behind the titlebar, so anchoring to the
-            // view's own top puts this control under the traffic lights. The
-            // safe area is what AppKit reserves for them, so it stays correct
-            // without hardcoding a titlebar height.
-            picker.topAnchor.constraint(
-                equalTo: root.safeAreaLayoutGuide.topAnchor, constant: 8
-            ),
+            // Plain padding: the window's content now starts below the
+            // titlebar, so there are no traffic lights to clear.
+            picker.topAnchor.constraint(equalTo: root.topAnchor, constant: 8),
             picker.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 10),
             picker.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -10),
 
