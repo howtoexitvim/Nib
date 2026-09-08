@@ -54,7 +54,6 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         // window the way Typora's does, rather than as two differently
         // coloured halves meeting at the split divider.
         window.titlebarAppearsTransparent = false
-        window.titleVisibility = .visible
         window.backgroundColor = .textBackgroundColor
         window.isMovableByWindowBackground = true
         window.minSize = NSSize(width: 640, height: 400)
@@ -79,8 +78,6 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         // no longer applies, since the title is drawn as an item here.
         let toolbar = NSToolbar(identifier: "NibMainToolbar")
         toolbar.showsBaselineSeparator = false
-        toolbar.delegate = self
-        toolbar.centeredItemIdentifier = .documentTitle
         window.toolbar = toolbar
         window.toolbarStyle = .unifiedCompact
         // AppKit lays the window title out inside the sidebar's titlebar
@@ -88,7 +85,11 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         // centres it over the whole window; the only way to get that is to
         // stop AppKit drawing the title and put it in a centred toolbar item
         // instead.
-        window.titleVisibility = .hidden
+        // AppKit draws the title. An earlier version hid it and drew a custom
+        // centred toolbar item instead, to get Typora's full-width centring --
+        // but .unifiedCompact kept drawing the window title too, so the band
+        // carried two stacked copies and grew to fit both.
+        window.titleVisibility = .visible
 
         // Menu items send to nil so they travel the responder chain, and this
         // controller supplies the actions for them. No splicing is needed or
@@ -191,19 +192,6 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     }
 
     private var sidebarItem: NSSplitViewItem { splitViewController.splitViewItems[0] }
-
-    /// "filename — Edited", centred over the window, as Typora shows it.
-    ///
-    /// One line, not a stacked title and subtitle: two lines do not fit the
-    /// titlebar's height and get clipped. The save state is the useful half --
-    /// with no save prompt anywhere, this is how you know where you stand.
-    private let titleLabel: NSTextField = {
-        let field = NSTextField(labelWithString: "")
-        field.alignment = .center
-        field.lineBreakMode = .byTruncatingMiddle
-        field.cell?.usesSingleLineMode = true
-        return field
-    }()
 
     // MARK: - Opening
 
@@ -669,35 +657,15 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         let name = currentFileURL?.lastPathComponent
             ?? workspace?.rootURL.lastPathComponent
             ?? "Nib"
-        // The window title is hidden and drawn by the toolbar item instead,
-        // but it still names the window in the Window menu and Mission
-        // Control, so it is kept in step.
         window?.title = name
-        titleLabel.attributedStringValue = Self.titleString(
-            name: name,
-            state: currentFileURL == nil ? nil : (editor.isDirty ? "Edited" : "Saved")
-        )
+        // AppKit centres the subtitle under the title in .unifiedCompact and
+        // greys it back, which is exactly the "— Edited / — Saved" treatment
+        // Typora gives it. With no save prompt anywhere, that state is the
+        // useful half of the title.
+        window?.subtitle = currentFileURL == nil
+            ? ""
+            : (editor.isDirty ? "Edited" : "Saved")
         window?.representedURL = currentFileURL
-    }
-
-    /// Renders "name — state", the state greyed back so the filename leads.
-    private static func titleString(name: String, state: String?) -> NSAttributedString {
-        let title = NSMutableAttributedString(
-            string: name,
-            attributes: [
-                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .semibold),
-                .foregroundColor: NSColor.labelColor,
-            ]
-        )
-        guard let state else { return title }
-        title.append(NSAttributedString(
-            string: "  —  \(state)",
-            attributes: [
-                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
-                .foregroundColor: NSColor.tertiaryLabelColor,
-            ]
-        ))
-        return title
     }
 
     private func presentError(_ error: Error, title: String) {
@@ -763,46 +731,5 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
             controller.selectFile(url)
         }
         present()
-    }
-}
-
-extension NSToolbarItem.Identifier {
-    static let documentTitle = NSToolbarItem.Identifier("NibDocumentTitle")
-}
-
-/// Supplies the centred title item.
-///
-/// The toolbar exists for layout rather than for controls: it makes AppKit
-/// reserve the titlebar band, and it is the only way to centre the document
-/// title over the whole window rather than over the sidebar column.
-extension WorkspaceWindowController: NSToolbarDelegate {
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.documentTitle, .flexibleSpace]
-    }
-
-    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, .documentTitle, .flexibleSpace]
-    }
-
-    func toolbar(
-        _ toolbar: NSToolbar,
-        itemForItemIdentifier identifier: NSToolbarItem.Identifier,
-        willBeInsertedIntoToolbar flag: Bool
-    ) -> NSToolbarItem? {
-        guard identifier == .documentTitle else { return nil }
-
-        // 38pt is AppKit's floor for .unifiedCompact: measured, the band stays
-        // 38 whether this label is constrained to 16pt or 14pt, because the
-        // traffic lights (which sit at 11..27) set the minimum. Going thinner
-        // would mean dropping the toolbar and drawing the band by hand, which
-        // is what previously left the editor half of the titlebar with nothing
-        // to drag the window by.
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.heightAnchor.constraint(equalToConstant: 16).isActive = true
-
-        let item = NSToolbarItem(itemIdentifier: identifier)
-        item.view = titleLabel
-        item.visibilityPriority = .high
-        return item
     }
 }

@@ -98,7 +98,9 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 14px;
-  padding: 4px 14px;
+  /* No left padding: the bar starts at the pane's edge so it meets the
+     sidebar with no gap between them. */
+  padding: 4px 14px 4px 0;
   border-top: 1px solid var(--nib-rule);
   background: var(--nib-bg-raised);
   color: var(--nib-muted);
