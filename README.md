@@ -13,27 +13,52 @@ make clean
 
 不需要 Xcode 工程：`swift build` 出二进制，Makefile 手工组装 .app,全程命令行可复现。
 
-产物约 **800KB**（Typora 46MB，Electron 应用通常 150-250MB）。
+产物约 **1.3MB**（Typora 46MB，Electron 应用通常 150-250MB）。
 
 ## 结构
 
 ```text
 Sources/Nib/
-  AppDelegate.swift             应用入口、菜单动作
-  MenuBuilder.swift             菜单栏（动作走 responder chain）
-  DocumentWindowController.swift 一个窗口一个文件：开、存、另存、脏标记
-  EditorViewController.swift    WKWebView 宿主 + JS 桥
-  CompletionService.swift       补全请求（Anthropic / OpenAI 两种协议）
-  Provider.swift                provider 配置与 endpoint 拼装
-  Keychain.swift                API key 存取
-  SettingsWindowController.swift 设置窗口
+  AppDelegate.swift                   应用入口、菜单动作
+  MenuBuilder.swift                   菜单栏（动作走 responder chain）
+  WorkspaceWindowController.swift     唯一的窗口：当前文件、保存生命周期、菜单校验
+  SidebarContainerViewController.swift 侧边栏容器（Files / Outline / Search）
+  SidebarViewController.swift         文件树（NSOutlineView）
+  OutlineViewController.swift         标题大纲
+  SearchViewController.swift          跨文件搜索界面
+  EditorViewController.swift          WKWebView 宿主 + JS 桥（全应用只有一个）
+  Workspace.swift                     文件夹与懒加载的树；增删改都在这里
+  FileNode.swift                      树节点 + 可见性/排序规则（纯函数）
+  WorkspaceStore.swift                上次的文件夹与文件（security-scoped bookmark）
+  ImageStore.swift                    粘贴的图片：类型嗅探、TIFF 转码、命名
+  AssetSchemeHandler.swift            nib-asset:// 把本地图片喂给预览
+  FileSearchService.swift             跨文件搜索（actor + AsyncStream）
+  Appearance.swift                    主题与排版
+  CompletionService.swift             补全请求（Anthropic / OpenAI 两种协议）
+  Provider.swift                      provider 配置与 endpoint 拼装
+  Keychain.swift                      API key 存取
+  SettingsWindowController.swift      设置窗口
 
 web/src/
   main.js       编辑器入口、两种模式切换
+  state.js      EditorState 工厂（切换文件要重建 state，见下）
   ghost.js      ghost text 扩展（触发策略、Tab 接受、Esc 忽略）
+  commands.js   菜单命令派发表
+  format.js     加粗/斜体/链接/标题（纯字符串变换 + CM 命令）
+  outline.js    标题解析
+  wordcount.js  字数统计（中文按字符计，不依赖 CodeMirror）
+  preview.js    渲染与图片路径重写
+  paste.js      粘贴图片
+  theme.js      外观设置
   bridge.js     与 Swift 通信
   editor.css    视觉系统
 ```
+
+**一个窗口，一个 WebView。** 每个 `WKWebView` 是独立 content process（30-60MB），一个文件一个窗口在几百个文件的笔记库里撑不住。切换文件是换内容。
+
+**切换文件重建 `EditorState`，不是 dispatch transaction。** transaction 会保留 undo history：A 切到 B 后按 ⌘Z 会把 A 的文本拉进 B，下次保存就写坏了 B。代价是没有跨文件 undo。
+
+**树是懒加载的。** 完整递归遍历一个真实笔记目录（6,165 个目录 / 1,599 个 md）实测 0.81 秒，放在开窗路径上是肉眼可见的卡顿；只读一层是 2ms。
 
 ## 两个模式
 
@@ -56,11 +81,23 @@ web/src/
 
 只支持两种官方协议：**Anthropic** 和 **OpenAI**。后者是 vLLM、Ollama、LM Studio 等自托管服务暴露的接口，所以本地模型不需要额外代码 —— 在设置里把 base URL 指过去、key 留空即可。
 
+## 图片
+
+粘贴的图片写进 `<文档名>.assets/`（Typora 约定），链接是相对路径 —— 目录整体搬走、同步、分享，链接都还在。Typora 的另一个选项是绝对路径指向 `~/Library/Application Support/typora-user-images/`，文件一旦离开这台机器就断。
+
+类型靠**字节**嗅探，不信剪贴板声称的类型：两者并不总是一致，而扩展名必须和真实内容匹配否则什么都渲染不出来。macOS 截图是 TIFF，会转成 PNG —— TIFF 出了苹果生态基本没法看。
+
+预览里的图片走 `nib-asset://` 由 Swift 读字节。相对路径本来是相对 bundle 解析的，而且页面的读权限只给了 bundle 的 `web/`，两个问题都得解决。**不能用 `<base>` 标签** —— 它会同时重写 `./editor.css` 和 `./editor.js`，app 直接打不开。请求限制在文档所在目录内：链接是页面内容，页面内容不可信。
+
 ## 测试
 
 ```
-swift test           15 个：响应清洗、endpoint 拼装
-cd web && npm test   10 个：触发规则（含中文标点、防误触发）
+swift test           66 个
+cd web && npm test   53 个
 ```
 
-JS 测试里有一条会校验测试中的规则和 `ghost.js` 里实际的规则一致，防止文档与实现漂移。
+Swift 侧：响应清洗、endpoint 拼装、文件可见性与排序、`.assets` 路径推导、重命名/新建的命名校验、图片类型嗅探与命名冲突、`nib-asset://` 的路径穿越拒绝、外观设置往返、跨文件搜索。
+
+JS 侧：ghost text 触发规则（含中文标点、防误触发）、字数统计（中文按字符、排除代码）、图片路径重写、格式化字符串变换、大纲解析。
+
+`wordcount.js`、`format.js`、`outline.js`、`preview.js` 都不依赖 CodeMirror，所以测试直接 import 真实实现。`ghost.js` 做不到（它是 CM 扩展），那边用一条测试校验规则一致，防止文档与实现漂移。
