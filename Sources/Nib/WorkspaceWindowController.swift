@@ -113,6 +113,16 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         editor.onOutlineChange = { [weak self] headings in
             self?.sidebarContainer.outline.show(headings)
         }
+        sidebarContainer.search.rootURL = { [weak self] in self?.workspace?.rootURL }
+        sidebarContainer.search.onSelect = { [weak self] hit in
+            guard let self else { return }
+            if hit.url.standardizedFileURL == self.currentFileURL {
+                self.editor.scrollToLine(hit.line - 1)
+            } else {
+                // The file has to be loaded before there is a line to go to.
+                self.selectFile(hit.url, thenScrollTo: hit.line - 1)
+            }
+        }
         editor.documentURL = { [weak self] in self?.currentFileURL }
         editor.onModeChange = { [weak self] _ in
             // Menu titles and enablement follow the mode, and AppKit only
@@ -188,11 +198,15 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     /// The current file is saved first, and a failed save cancels the switch --
     /// otherwise a write error would silently discard the edits as the buffer
     /// is replaced.
-    func selectFile(_ url: URL) {
-        guard url.standardizedFileURL != currentFileURL else { return }
+    func selectFile(_ url: URL, thenScrollTo line: Int? = nil) {
+        guard url.standardizedFileURL != currentFileURL else {
+            if let line { editor.scrollToLine(line) }
+            return
+        }
         Task { @MainActor in
             guard await saveCurrentIfNeeded() else { return }
             load(url)
+            if let line { editor.scrollToLine(line) }
         }
     }
 
@@ -533,8 +547,9 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     }
 
     @objc func performFindInFolder(_ sender: Any?) {
-        // Arrives with the search UI, in a later commit.
-        NSSound.beep()
+        if sidebarItem.isCollapsed { sidebarItem.animator().isCollapsed = false }
+        sidebarContainer.show(.search)
+        sidebarContainer.search.focusField()
     }
 
     @objc func toggleOutline(_ sender: Any?) {

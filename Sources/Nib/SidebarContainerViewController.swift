@@ -7,10 +7,11 @@ import AppKit
 /// flipping back and forth.
 @MainActor
 final class SidebarContainerViewController: NSViewController {
-    enum Tab: Int { case files, outline }
+    enum Tab: Int { case files, outline, search }
 
     let files = SidebarViewController()
     let outline = OutlineViewController()
+    let search = SearchViewController()
 
     private let picker = NSSegmentedControl()
     private let container = NSView()
@@ -20,9 +21,10 @@ final class SidebarContainerViewController: NSViewController {
     override func loadView() {
         picker.segmentStyle = .automatic
         picker.trackingMode = .selectOne
-        picker.segmentCount = 2
+        picker.segmentCount = 3
         picker.setLabel("Files", forSegment: 0)
         picker.setLabel("Outline", forSegment: 1)
+        picker.setLabel("Search", forSegment: 2)
         picker.setSelected(true, forSegment: 0)
         picker.target = self
         picker.action = #selector(tabChanged)
@@ -55,6 +57,7 @@ final class SidebarContainerViewController: NSViewController {
 
         addChild(files)
         addChild(outline)
+        addChild(search)
         show(.files)
     }
 
@@ -66,7 +69,12 @@ final class SidebarContainerViewController: NSViewController {
         self.tab = tab
         picker.setSelected(true, forSegment: tab.rawValue)
 
-        let wanted = tab == .files ? files.view : outline.view
+        let wanted: NSView
+        switch tab {
+        case .files: wanted = files.view
+        case .outline: wanted = outline.view
+        case .search: wanted = search.view
+        }
         guard wanted.superview !== container else { return }
 
         container.subviews.forEach { $0.removeFromSuperview() }
@@ -80,8 +88,8 @@ final class SidebarContainerViewController: NSViewController {
         ])
     }
 
-    /// Flips to the other pane, for the View menu's Outline item.
+    /// Flips between files and the outline, for the View menu's Outline item.
     func toggleTab() {
-        show(tab == .files ? .outline : .files)
+        show(tab == .outline ? .files : .outline)
     }
 }
