@@ -33,7 +33,8 @@ app: web swift
 	cp $(BINARY) $(CONTENTS)/MacOS/Nib
 	cp Resources/Info.plist $(CONTENTS)/Info.plist
 	cp Resources/Nib.icns $(CONTENTS)/Resources/Nib.icns
-	cp web/dist/* $(CONTENTS)/Resources/web/
+	# -R, not a plain glob: a subdirectory in dist/ would otherwise be skipped.
+	cp -R web/dist/. $(CONTENTS)/Resources/web/
 	# Ad-hoc signature: without one the Keychain item is tied to nothing stable
 	# and macOS re-prompts for access on every launch.
 	codesign --force --sign - --entitlements Resources/Nib.entitlements $(APP)

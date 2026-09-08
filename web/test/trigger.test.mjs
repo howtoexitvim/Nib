@@ -94,8 +94,18 @@ test("Cmd+/ is bound in exactly one place", () => {
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
   assert.equal(/addEventListener\("keydown"/.test(main), false);
   // And CodeMirror's own Cmd+/ (toggleComment) must be filtered out, or it
-  // comments the line while the menu switches modes.
-  assert.ok(main.includes('binding.key !== "Mod-/"'));
+  // comments the line while the menu switches modes. The keymap now lives in
+  // state.js, since switching files rebuilds the whole state.
+  const state = readFileSync(new URL("../src/state.js", import.meta.url), "utf8");
+  assert.ok(state.includes('binding.key !== "Mod-/"'));
+});
+
+test("switching files rebuilds the state instead of dispatching a change", () => {
+  // A transaction would keep the undo history across the switch, so one undo
+  // would pull the previous file's text into this buffer -- and the next save
+  // would write it to disk.
+  const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
+  assert.ok(main.includes("view.setState(makeState("));
 });
 
 test("there are exactly two modes", () => {

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fefefe"/><stop offset="1" stop-color="#eeece7"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2c2c30"/><stop offset="1" stop-color="#141416"/>
+    </linearGradient>
+  </defs>
+  <path d="M 285 100 L 739 100 C 900.32 100 924 123.68 924 285 L 924 739 C 924 900.32 900.32 924 739 924 L 285 924 C 123.68 924 100 900.32 100 739 L 100 285 C 100 123.68 123.68 100 285 100 Z" fill="url(#paper)"/>
+  <path d="M 285 100 L 739 100 C 900.32 100 924 123.68 924 285 L 924 739 C 924 900.32 900.32 924 739 924 L 285 924 C 123.68 924 100 900.32 100 739 L 100 285 C 100 123.68 123.68 100 285 100 Z" fill="none" stroke="#000" stroke-opacity="0.09" stroke-width="2"/>
+  <path d="M 416.96000000000004 300 L 607.04 300 C 617.6 400 644 460 625.52 550 L 512 760 L 398.48 550 C 380 460 406.4 400 416.96000000000004 300 Z" fill="url(#ink)"/>
+  <!-- breather hole and slit, cut in paper colour so they read at small sizes -->
+  <circle cx="512" cy="520" r="34" fill="#f4f3f0"/>
+  <rect x="501" y="520" width="22" height="222" rx="11" fill="#f4f3f0"/>
+</svg>
