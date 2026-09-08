@@ -24,7 +24,7 @@ final class SettingsWindowController: NSWindowController {
 
     private convenience init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 330),
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 290),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -42,25 +42,34 @@ final class SettingsWindowController: NSWindowController {
         providerPopUp.target = self
         providerPopUp.action = #selector(providerChanged)
 
-        baseURLField.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        modelField.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        keyField.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        // A URL, a model id and a key are all things you check character by
+        // character, which is what monospace is for. The size matches the
+        // system font rather than shrinking below it.
+        for field in [baseURLField, modelField, keyField] {
+            field.font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+        }
+        baseURLField.placeholderString = "https://api.anthropic.com"
+        modelField.placeholderString = "model id"
         keyField.placeholderString = "leave empty for a local server"
 
         let hint = NSTextField(wrappingLabelWithString:
             "Only the Anthropic and OpenAI protocols are supported. Self-hosted servers "
-            + "such as vLLM speak the OpenAI one -- point the base URL at them and leave "
+            + "such as vLLM speak the OpenAI one: point the base URL at them and leave "
             + "the key empty. The key is stored in your login Keychain.")
-        hint.font = .systemFont(ofSize: 11)
+        hint.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         hint.textColor = .secondaryLabelColor
 
-        status.font = .systemFont(ofSize: 11)
+        status.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         status.textColor = .secondaryLabelColor
 
         let save = NSButton(title: "Save", target: self, action: #selector(save))
         save.keyEquivalent = "\r"
         save.bezelStyle = .rounded
+        save.controlSize = .large
 
+        // Labels in one column, controls in the next, as every macOS settings
+        // pane is laid out. The label column hugs its text so the fields sit
+        // beside their labels instead of drifting to the far edge.
         let grid = NSGridView(views: [
             [label("Provider"), providerPopUp],
             [label("Base URL"), baseURLField],
@@ -68,24 +77,42 @@ final class SettingsWindowController: NSWindowController {
             [label("API key"), keyField],
         ])
         grid.rowSpacing = 10
-        grid.columnSpacing = 12
+        grid.columnSpacing = 10
         grid.column(at: 0).xPlacement = .trailing
         grid.column(at: 1).xPlacement = .fill
+        // Pin the label column, or the grid splits the width evenly between
+        // the two and the labels take more than half the window.
+        grid.column(at: 0).width = 76
+        grid.translatesAutoresizingMaskIntoConstraints = false
 
-        let stack = NSStackView(views: [grid, hint, status, save])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 14
-        stack.edgeInsets = NSEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(stack)
+        hint.translatesAutoresizingMaskIntoConstraints = false
+        status.translatesAutoresizingMaskIntoConstraints = false
+        save.translatesAutoresizingMaskIntoConstraints = false
 
+        container.addSubview(grid)
+        container.addSubview(hint)
+        container.addSubview(status)
+        container.addSubview(save)
+
+        let margin: CGFloat = 20
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: container.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            grid.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40),
-            hint.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40),
+            grid.topAnchor.constraint(equalTo: container.topAnchor, constant: margin),
+            grid.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: margin),
+            grid.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -margin),
+
+            hint.topAnchor.constraint(equalTo: grid.bottomAnchor, constant: 16),
+            hint.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: margin),
+            hint.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -margin),
+
+            status.topAnchor.constraint(equalTo: hint.bottomAnchor, constant: 10),
+            status.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: margin),
+            status.trailingAnchor.constraint(lessThanOrEqualTo: save.leadingAnchor, constant: -10),
+            status.centerYAnchor.constraint(equalTo: save.centerYAnchor),
+
+            // Bottom trailing, where a confirming button belongs on macOS.
+            save.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -margin),
+            save.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -margin),
+            save.topAnchor.constraint(greaterThanOrEqualTo: hint.bottomAnchor, constant: 10),
         ])
         return container
     }
@@ -93,6 +120,9 @@ final class SettingsWindowController: NSWindowController {
     private func label(_ text: String) -> NSTextField {
         let field = NSTextField(labelWithString: text)
         field.alignment = .right
+        // Hug the text, so the label column stays as narrow as its longest
+        // label and the fields sit beside it rather than drifting away.
+        field.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         return field
     }
 

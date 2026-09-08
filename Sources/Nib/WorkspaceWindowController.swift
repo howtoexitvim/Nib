@@ -69,20 +69,20 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         window.center()
         window.setFrameAutosaveName("NibMainWindow")
 
-        // An empty toolbar, purely for layout. With `.fullSizeContentView` and
-        // no toolbar the content view fills the titlebar area, so the sidebar's
-        // first rows are drawn under the traffic lights. A window-hosted
-        // toolbar makes AppKit reserve the titlebar band and place the traffic
-        // lights inside it, and `.unified` lets the split view's sidebar tint
-        // run up behind it -- the same structural fix as ImageDedupe's
-        // window-hosted toolbar, rather than nudging content down by a
-        // hardcoded inset that has to be re-guessed on every OS.
+        // A toolbar with nothing but the document title, which is what makes
+        // AppKit reserve a titlebar band across the whole window and put the
+        // traffic lights inside it.
+        //
+        // .unifiedCompact rather than .unified: the tall style leaves a 52pt
+        // band, where Typora's is around 38. The reason .unified was needed
+        // before -- it constrained AppKit's own title to the sidebar column --
+        // no longer applies, since the title is drawn as an item here.
         let toolbar = NSToolbar(identifier: "NibMainToolbar")
         toolbar.showsBaselineSeparator = false
         toolbar.delegate = self
         toolbar.centeredItemIdentifier = .documentTitle
         window.toolbar = toolbar
-        window.toolbarStyle = .unified
+        window.toolbarStyle = .unifiedCompact
         // AppKit lays the window title out inside the sidebar's titlebar
         // column, so the filename ends up squeezed over the file tree. Typora
         // centres it over the whole window; the only way to get that is to
