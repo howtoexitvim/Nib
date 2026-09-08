@@ -48,7 +48,7 @@ const editorTheme = EditorView.theme({
     color: "var(--nib-fg)",
   },
   ".cm-scroller": {
-    fontFamily: "var(--nib-serif)",
+    fontFamily: "var(--nib-font-family)",
     lineHeight: "1.7",
     padding: "48px 0 45vh",
     overflowY: "auto",

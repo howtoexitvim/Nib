@@ -176,6 +176,8 @@ enum MenuBuilder {
         outline.keyEquivalentModifierMask = [.control, .command]
         menu.addItem(outline)
         menu.addItem(.separator())
+        menu.addItem(appearanceMenu())
+        menu.addItem(.separator())
 
         // Cmd+F went to Find; this is the macOS-standard chord anyway.
         let fullScreen = NSMenuItem(
@@ -185,6 +187,41 @@ enum MenuBuilder {
         )
         fullScreen.keyEquivalentModifierMask = [.control, .command]
         menu.addItem(fullScreen)
+        return item
+    }
+
+    /// Theme and typography. A submenu rather than a settings tab: these are
+    /// four small choices a writer changes while writing, not configuration.
+    private static func appearanceMenu() -> NSMenuItem {
+        let (item, menu) = submenu("Appearance")
+
+        for theme in Appearance.Theme.allCases {
+            let entry = NSMenuItem(
+                title: theme.label,
+                action: #selector(WorkspaceWindowController.setTheme(_:)),
+                keyEquivalent: ""
+            )
+            entry.representedObject = theme.rawValue
+            menu.addItem(entry)
+        }
+        menu.addItem(.separator())
+
+        for family in Appearance.FontFamily.allCases {
+            let entry = NSMenuItem(
+                title: family.label,
+                action: #selector(WorkspaceWindowController.setFontFamily(_:)),
+                keyEquivalent: ""
+            )
+            entry.representedObject = family.rawValue
+            menu.addItem(entry)
+        }
+        menu.addItem(.separator())
+
+        menu.addItem(withTitle: "Bigger Text", action: #selector(WorkspaceWindowController.increaseFontSize(_:)), keyEquivalent: "+")
+        menu.addItem(withTitle: "Smaller Text", action: #selector(WorkspaceWindowController.decreaseFontSize(_:)), keyEquivalent: "-")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Wider Lines", action: #selector(WorkspaceWindowController.widenMeasure(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "Narrower Lines", action: #selector(WorkspaceWindowController.narrowMeasure(_:)), keyEquivalent: "")
         return item
     }
 

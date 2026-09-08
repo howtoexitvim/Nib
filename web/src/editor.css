@@ -16,6 +16,9 @@
   --nib-mono: ui-monospace, "SF Mono", Menlo, monospace;
   --nib-font-size: 17px;
   --nib-measure: 46rem;
+  /* Which of the three stacks prose is set in. Pointed at one of the above
+     by the appearance settings; serif by default. */
+  --nib-font-family: var(--nib-serif);
 
   --nib-bg: #fdfdfc;
   --nib-fg: #16161a;
@@ -28,8 +31,10 @@
   --nib-hover: #00000008;
 }
 
+/* The dark palette applies when the system asks for it and the user has not
+   overridden to light, or when the user explicitly chose dark. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --nib-bg: #191919;
     --nib-fg: #e8e8e6;
     --nib-muted: #a8a8a4;
@@ -42,6 +47,18 @@
   }
 }
 
+:root[data-theme="dark"] {
+  --nib-bg: #191919;
+  --nib-fg: #e8e8e6;
+  --nib-muted: #a8a8a4;
+  --nib-faint: #6a6a68;
+  --nib-accent: #7aa7dd;
+  --nib-selection: #35507088;
+  --nib-rule: #2e2e2e;
+  --nib-bg-raised: #202020;
+  --nib-hover: #ffffff0e;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -52,7 +69,7 @@ body {
   margin: 0;
   background: var(--nib-bg);
   color: var(--nib-fg);
-  font-family: var(--nib-serif);
+  font-family: var(--nib-font-family);
   font-size: var(--nib-font-size);
   /* The window chrome is native; the web layer must never scroll as a whole. */
   overflow: hidden;

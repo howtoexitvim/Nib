@@ -24,6 +24,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     private let splitViewController = NSSplitViewController()
 
     private var workspace: Workspace?
+    private var appearance = Appearance.load()
     /// Debounces autosave while typing, so a write happens after a pause
     /// rather than on every keystroke.
     private var idleSaveTask: Task<Void, Never>?
@@ -94,12 +95,18 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
 
         editor.onDirtyChange = { [weak self] dirty in
             self?.window?.isDocumentEdited = dirty
+            self?.updateTitle()
             if dirty { self?.scheduleIdleSave() }
         }
         sidebar.onSelect = { [weak self] url in
             self?.selectFile(url)
         }
         sidebar.attach(menu: makeContextMenu())
+        // Queued until the page loads, so the saved look is in place before
+        // anything is shown rather than flashing the default first. The window
+        // chrome is set directly, since it needs no page.
+        editor.applyAppearance(appearance)
+        window.appearance = appearance.theme.nsAppearance
         sidebarContainer.outline.onSelect = { [weak self] heading in
             self?.editor.scrollToLine(heading.line)
         }
@@ -152,20 +159,14 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
 
     private var sidebarItem: NSSplitViewItem { splitViewController.splitViewItems[0] }
 
-    /// The filename and its folder, centred over the window like Typora's.
+    /// "filename — Edited", centred over the window, as Typora shows it.
+    ///
+    /// One line, not a stacked title and subtitle: two lines do not fit the
+    /// titlebar's height and get clipped. The save state is the useful half --
+    /// with no save prompt anywhere, this is how you know where you stand.
     private let titleLabel: NSTextField = {
         let field = NSTextField(labelWithString: "")
         field.alignment = .center
-        field.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
-        field.lineBreakMode = .byTruncatingMiddle
-        return field
-    }()
-
-    private let subtitleLabel: NSTextField = {
-        let field = NSTextField(labelWithString: "")
-        field.alignment = .center
-        field.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        field.textColor = .secondaryLabelColor
         field.lineBreakMode = .byTruncatingMiddle
         return field
     }()
@@ -455,6 +456,62 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         }
     }
 
+    // MARK: - Appearance
+
+    @objc func setTheme(_ sender: Any?) {
+        guard let raw = (sender as? NSMenuItem)?.representedObject as? String,
+              let theme = Appearance.Theme(rawValue: raw) else { return }
+        appearance.theme = theme
+        applyAppearance()
+    }
+
+    @objc func setFontFamily(_ sender: Any?) {
+        guard let raw = (sender as? NSMenuItem)?.representedObject as? String,
+              let family = Appearance.FontFamily(rawValue: raw) else { return }
+        appearance.family = family
+        applyAppearance()
+    }
+
+    @objc func increaseFontSize(_ sender: Any?) { stepFontSize(by: 1) }
+    @objc func decreaseFontSize(_ sender: Any?) { stepFontSize(by: -1) }
+    @objc func widenMeasure(_ sender: Any?) { stepMeasure(by: 1) }
+    @objc func narrowMeasure(_ sender: Any?) { stepMeasure(by: -1) }
+
+    private func stepFontSize(by delta: Int) {
+        let sizes = Appearance.fontSizes
+        guard let current = sizes.firstIndex(of: appearance.fontSize) else {
+            appearance.fontSize = 17
+            applyAppearance()
+            return
+        }
+        let next = current + delta
+        guard sizes.indices.contains(next) else { return }
+        appearance.fontSize = sizes[next]
+        applyAppearance()
+    }
+
+    private func stepMeasure(by delta: Int) {
+        let measures = Appearance.measures
+        // Clamp to the nearest step rather than jumping to a default, so a
+        // value written by hand still moves in the right direction.
+        let current = measures.firstIndex(of: appearance.measure)
+            ?? measures.firstIndex { $0 >= appearance.measure }
+            ?? 0
+        let next = current + delta
+        guard measures.indices.contains(next) else { return }
+        appearance.measure = measures[next]
+        applyAppearance()
+    }
+
+    private func applyAppearance() {
+        appearance.save()
+        editor.applyAppearance(appearance)
+        // The sidebar, titlebar and menus are AppKit, not web content: setting
+        // CSS variables does nothing for them, which is why the sidebar stayed
+        // light when the editor went dark.
+        window?.appearance = appearance.theme.nsAppearance
+    }
+
     // MARK: - Editing commands
     //
     // These forward to the web layer, which owns the buffer. They apply in
@@ -535,6 +592,28 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
             menuItem.title = isSourceMode ? "Show Preview" : "Show Source"
             return currentFileURL != nil || editor.isDirty
 
+        case #selector(setTheme(_:)):
+            menuItem.state =
+                (menuItem.representedObject as? String) == appearance.theme.rawValue ? .on : .off
+            return true
+
+        case #selector(setFontFamily(_:)):
+            menuItem.state =
+                (menuItem.representedObject as? String) == appearance.family.rawValue ? .on : .off
+            return true
+
+        case #selector(increaseFontSize(_:)):
+            return appearance.fontSize < (Appearance.fontSizes.last ?? 28)
+
+        case #selector(decreaseFontSize(_:)):
+            return appearance.fontSize > (Appearance.fontSizes.first ?? 12)
+
+        case #selector(widenMeasure(_:)):
+            return appearance.measure < (Appearance.measures.last ?? 80)
+
+        case #selector(narrowMeasure(_:)):
+            return appearance.measure > (Appearance.measures.first ?? 32)
+
         case #selector(toggleSidebar(_:)):
             menuItem.title = sidebarItem.isCollapsed ? "Show Sidebar" : "Hide Sidebar"
             return true
@@ -554,12 +633,31 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         // but it still names the window in the Window menu and Mission
         // Control, so it is kept in step.
         window?.title = name
-        titleLabel.stringValue = name
-        subtitleLabel.stringValue = currentFileURL != nil
-            ? (workspace?.rootURL.lastPathComponent ?? "")
-            : ""
-        subtitleLabel.isHidden = subtitleLabel.stringValue.isEmpty
+        titleLabel.attributedStringValue = Self.titleString(
+            name: name,
+            state: currentFileURL == nil ? nil : (editor.isDirty ? "Edited" : "Saved")
+        )
         window?.representedURL = currentFileURL
+    }
+
+    /// Renders "name — state", the state greyed back so the filename leads.
+    private static func titleString(name: String, state: String?) -> NSAttributedString {
+        let title = NSMutableAttributedString(
+            string: name,
+            attributes: [
+                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .semibold),
+                .foregroundColor: NSColor.labelColor,
+            ]
+        )
+        guard let state else { return title }
+        title.append(NSAttributedString(
+            string: "  —  \(state)",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
+                .foregroundColor: NSColor.tertiaryLabelColor,
+            ]
+        ))
+        return title
     }
 
     private func presentError(_ error: Error, title: String) {
@@ -653,13 +751,8 @@ extension WorkspaceWindowController: NSToolbarDelegate {
     ) -> NSToolbarItem? {
         guard identifier == .documentTitle else { return nil }
 
-        let stack = NSStackView(views: [titleLabel, subtitleLabel])
-        stack.orientation = .vertical
-        stack.alignment = .centerX
-        stack.spacing = 0
-
         let item = NSToolbarItem(itemIdentifier: identifier)
-        item.view = stack
+        item.view = titleLabel
         item.visibilityPriority = .high
         return item
     }

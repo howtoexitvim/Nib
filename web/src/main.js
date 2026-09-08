@@ -16,6 +16,7 @@ import { offsetOfLine, parseOutline } from "./outline.js";
 import { notifyOutline } from "./bridge.js";
 import { installHostAPI, notifyDirty, notifyMode } from "./bridge.js";
 import { commands } from "./commands.js";
+import { applyAppearance } from "./theme.js";
 
 const root = document.getElementById("root");
 const previewEl = document.getElementById("preview");
@@ -163,6 +164,7 @@ installHostAPI({
     });
     if (mode === "source") view.focus();
   },
+  applyAppearance,
   setMode,
   toggleMode,
   getMode: () => mode,

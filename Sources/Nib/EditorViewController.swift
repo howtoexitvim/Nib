@@ -162,6 +162,13 @@ final class EditorViewController: NSViewController {
         callJS("window.nib.scrollToLine(\(line))")
     }
 
+    /// Pushes theme and typography into the page.
+    func applyAppearance(_ appearance: Appearance) {
+        let data = try? JSONSerialization.data(withJSONObject: appearance.payload)
+        let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        callJS("window.nib.applyAppearance(\(json))")
+    }
+
     func toggleMode() {
         callJS("window.nib.toggleMode()")
     }
