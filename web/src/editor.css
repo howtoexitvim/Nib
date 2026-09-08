@@ -10,6 +10,9 @@
   color-scheme: light dark;
 
   --nib-serif: ui-serif, "New York", Georgia, "Songti SC", serif;
+  /* Prose is serif; chrome is not. A file tree set in New York reads as a
+     document rather than as an interface. */
+  --nib-sans: -apple-system, "SF Pro Text", "PingFang SC", sans-serif;
   --nib-mono: ui-monospace, "SF Mono", Menlo, monospace;
   --nib-font-size: 17px;
   --nib-measure: 46rem;
@@ -21,6 +24,8 @@
   --nib-accent: #3b6ea8;
   --nib-selection: #b5d5ff88;
   --nib-rule: #e6e6e2;
+  --nib-bg-raised: #f4f4f1;
+  --nib-hover: #00000008;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -32,6 +37,8 @@
     --nib-accent: #7aa7dd;
     --nib-selection: #35507088;
     --nib-rule: #2e2e2e;
+    --nib-bg-raised: #202020;
+    --nib-hover: #ffffff0e;
   }
 }
 
@@ -51,14 +58,16 @@ body {
   overflow: hidden;
 }
 
-#root {
+/* The Swift side owns the split; the web layer fills whatever pane it is
+   given, and exactly one of these is visible at a time. */
+#root,
+.preview {
   height: 100%;
 }
 
 /* ---- preview ---- */
 
 .preview {
-  height: 100%;
   overflow-y: auto;
   max-width: var(--nib-measure);
   margin: 0 auto;

@@ -39,6 +39,20 @@
 				<string>public.plain-text</string>
 			</array>
 		</dict>
+		<!-- So a folder can be dropped on the icon or opened with Nib, which is
+		     how a workspace is meant to be opened. -->
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Folder</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>None</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.folder</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

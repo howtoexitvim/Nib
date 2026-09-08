@@ -44,14 +44,30 @@ enum MenuBuilder {
 
     private static func fileMenu() -> NSMenuItem {
         let (item, menu) = submenu("File")
-        menu.addItem(withTitle: "New", action: #selector(AppDelegate.newDocument(_:)), keyEquivalent: "n")
         menu.addItem(withTitle: "Open…", action: #selector(AppDelegate.openDocument(_:)), keyEquivalent: "o")
-        menu.addItem(.separator())
-        menu.addItem(withTitle: "Save", action: #selector(DocumentWindowController.saveDocument(_:)), keyEquivalent: "s")
 
-        let saveAs = NSMenuItem(title: "Save As…", action: #selector(DocumentWindowController.saveDocumentAs(_:)), keyEquivalent: "s")
+        let openFolder = NSMenuItem(
+            title: "Open Folder…",
+            action: #selector(WorkspaceWindowController.openFolderWithPanel(_:)),
+            keyEquivalent: "o"
+        )
+        openFolder.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(openFolder)
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Save", action: #selector(WorkspaceWindowController.saveDocument(_:)), keyEquivalent: "s")
+
+        let saveAs = NSMenuItem(title: "Save As…", action: #selector(WorkspaceWindowController.saveDocumentAs(_:)), keyEquivalent: "s")
         saveAs.keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(saveAs)
+        menu.addItem(.separator())
+
+        let reveal = NSMenuItem(
+            title: "Reveal in Finder",
+            action: #selector(WorkspaceWindowController.revealInFinder(_:)),
+            keyEquivalent: "r"
+        )
+        reveal.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(reveal)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         return item
@@ -73,9 +89,19 @@ enum MenuBuilder {
 
     private static func viewMenu() -> NSMenuItem {
         let (item, menu) = submenu("View")
-        // The web layer also binds Cmd+/ so the shortcut works while the
-        // preview holds focus; this item exists for discoverability.
-        menu.addItem(withTitle: "Toggle Preview", action: #selector(DocumentWindowController.toggleRenderMode(_:)), keyEquivalent: "/")
+
+        // This item owns Cmd+/ outright. Binding it here *and* in a web keydown
+        // listener fired the toggle twice per press, which read as a phantom
+        // third, blank mode.
+        menu.addItem(withTitle: "Toggle Preview", action: #selector(WorkspaceWindowController.toggleRenderMode(_:)), keyEquivalent: "/")
+
+        let sidebar = NSMenuItem(
+            title: "Toggle Sidebar",
+            action: #selector(WorkspaceWindowController.toggleSidebar(_:)),
+            keyEquivalent: "s"
+        )
+        sidebar.keyEquivalentModifierMask = [.control, .command]
+        menu.addItem(sidebar)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
         return item

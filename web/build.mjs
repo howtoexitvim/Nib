@@ -5,6 +5,7 @@
  * as its own opaque origin, so a `type="module"` script fails the CORS check
  * and silently never runs. Everything is inlined -- no CDN, no remote import.
  */
+import { watch as watchChanges } from "node:fs";
 import { cp, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,6 +16,13 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const src = path.join(root, "src");
 const dist = path.join(root, "dist");
 const watch = process.argv.includes("--watch");
+
+/** Re-copies one static file whenever it changes. */
+function watchFile(from, to) {
+  watchChanges(from, () => {
+    cp(from, to).catch((error) => console.error(error.message));
+  });
+}
 
 const options = {
   entryPoints: [path.join(src, "main.js")],
@@ -35,6 +43,10 @@ await cp(path.join(src, "editor.css"), path.join(dist, "editor.css"));
 if (watch) {
   const ctx = await context(options);
   await ctx.watch();
+  // esbuild only watches what it bundles, so index.html and editor.css would
+  // otherwise stay at whatever they were when the watch started.
+  watchFile(path.join(src, "index.html"), path.join(dist, "index.html"));
+  watchFile(path.join(src, "editor.css"), path.join(dist, "editor.css"));
   console.log("watching " + path.relative(process.cwd(), src));
 } else {
   await build(options);
