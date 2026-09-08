@@ -11,11 +11,13 @@ import { EditorView } from "@codemirror/view";
 
 import { makeState } from "./state.js";
 import { renderMarkdown } from "./preview.js";
+import { documentStats } from "./wordcount.js";
 import { installHostAPI, notifyDirty, notifyMode } from "./bridge.js";
 import { commands } from "./commands.js";
 
 const root = document.getElementById("root");
 const previewEl = document.getElementById("preview");
+const statsEl = document.getElementById("stats");
 
 let savedDoc = "";
 let mode = "source";
@@ -30,8 +32,25 @@ const positions = new Map();
 
 /** Fires on every edit so the host can track the dirty state. */
 const dirtyListener = EditorView.updateListener.of((update) => {
-  if (update.docChanged) notifyDirty(update.state.doc.toString() !== savedDoc);
+  if (!update.docChanged) return;
+  notifyDirty(update.state.doc.toString() !== savedDoc);
+  scheduleStats();
 });
+
+/**
+ * Counting scans the whole document, so it runs after typing stops rather
+ * than on every keystroke -- at 100k words the difference is visible.
+ */
+let statsTimer = 0;
+function scheduleStats() {
+  clearTimeout(statsTimer);
+  statsTimer = setTimeout(updateStats, 200);
+}
+
+function updateStats() {
+  const { words, characters } = documentStats(view.state.doc.toString());
+  statsEl.textContent = `${words.toLocaleString()} words · ${characters.toLocaleString()} characters`;
+}
 
 const view = new EditorView({
   parent: root,
@@ -98,6 +117,7 @@ installHostAPI({
     const remembered = positions.get(currentPath);
     if (remembered?.scrollTop) view.scrollDOM.scrollTop = remembered.scrollTop;
     if (mode === "preview") renderPreview();
+    updateStats();
     notifyDirty(false);
     if (mode === "source") view.focus();
   },
@@ -131,3 +151,4 @@ installHostAPI({
 });
 
 setMode("source");
+updateStats();

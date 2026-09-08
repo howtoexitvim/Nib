@@ -10,8 +10,12 @@
     <!-- Exactly one of these is visible at a time. The preview is inert: no
          contenteditable, no input handlers, so there is no rendered mode in
          which ghost text could fire. -->
-    <div id="root"></div>
-    <article id="preview" class="preview" tabindex="0" hidden></article>
+    <div id="pane">
+      <div id="root"></div>
+      <article id="preview" class="preview" tabindex="0" hidden></article>
+    </div>
+    <!-- Always visible, in both modes: it describes the document, not the view. -->
+    <footer id="status" class="status"><span id="stats"></span></footer>
     <!-- Classic script, not a module: see build.mjs. -->
     <script src="./editor.js" defer></script>
   </body>

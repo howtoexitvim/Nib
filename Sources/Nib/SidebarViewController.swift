@@ -38,9 +38,11 @@ final class SidebarViewController: NSViewController {
         scrollView.documentView = outlineView
         scrollView.hasVerticalScroller = true
         scrollView.drawsBackground = false
-        scrollView.automaticallyAdjustsContentInsets = false
-        // Clears the transparent titlebar, which the split view draws under.
-        scrollView.contentInsets = NSEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
+        // Let AppKit supply the top inset from the window's titlebar/toolbar
+        // height rather than hardcoding one. The old `top: 8` was a guess at a
+        // ~28pt titlebar, which is why the first rows sat under the traffic
+        // lights; it also silently breaks whenever that height changes.
+        scrollView.automaticallyAdjustsContentInsets = true
 
         view = scrollView
     }

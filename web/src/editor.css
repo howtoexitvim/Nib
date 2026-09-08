@@ -59,10 +59,36 @@ body {
 }
 
 /* The Swift side owns the split; the web layer fills whatever pane it is
-   given, and exactly one of these is visible at a time. */
+   given. The status bar is pinned under a flexible editing area, and exactly
+   one of #root / .preview is visible at a time. */
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+#pane {
+  flex: 1;
+  min-height: 0;
+}
+
 #root,
 .preview {
   height: 100%;
+}
+
+.status {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+  padding: 4px 14px;
+  border-top: 1px solid var(--nib-rule);
+  background: var(--nib-bg-raised);
+  color: var(--nib-muted);
+  font-family: var(--nib-sans);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
 }
 
 /* ---- preview ---- */

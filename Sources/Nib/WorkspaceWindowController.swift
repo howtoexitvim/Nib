@@ -57,12 +57,30 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         window.setContentSize(NSSize(width: 1060, height: 720))
         window.center()
         window.setFrameAutosaveName("NibMainWindow")
-        // Menu items send to nil so they travel the responder chain, but a
-        // window controller is not in that chain by default -- without this,
-        // every action here is unhandled and validateMenuItem never runs, so
-        // the whole Format menu stays greyed out.
-        nextResponder = window.contentViewController?.nextResponder
-        window.contentViewController?.nextResponder = self
+
+        // An empty toolbar, purely for layout. With `.fullSizeContentView` and
+        // no toolbar the content view fills the titlebar area, so the sidebar's
+        // first rows are drawn under the traffic lights. A window-hosted
+        // toolbar makes AppKit reserve the titlebar band and place the traffic
+        // lights inside it, and `.unified` lets the split view's sidebar tint
+        // run up behind it -- the same structural fix as ImageDedupe's
+        // window-hosted toolbar, rather than nudging content down by a
+        // hardcoded inset that has to be re-guessed on every OS.
+        let toolbar = NSToolbar(identifier: "NibMainToolbar")
+        toolbar.showsBaselineSeparator = false
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+
+        // Menu items send to nil so they travel the responder chain, and this
+        // controller supplies the actions for them. No splicing is needed or
+        // safe: AppKit already sets the content view controller's nextResponder
+        // to the window, and NSWindow.nextResponder is its own windowController,
+        // so this object is on the chain already. The previous
+        //     nextResponder = contentViewController.nextResponder   // the window
+        //     contentViewController.nextResponder = self
+        // built a self -> window -> self loop instead, and the first unhandled
+        // selector walked it until it hit the stack guard page -- a SIGSEGV
+        // (KERN_PROTECTION_FAILURE) under a wall of AppKit forwardMethod frames.
 
         editor.onDirtyChange = { [weak self] dirty in
             self?.window?.isDocumentEdited = dirty
