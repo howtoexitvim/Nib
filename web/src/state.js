@@ -13,6 +13,7 @@ import { EditorView, drawSelection, highlightActiveLine, keymap, rectangularSele
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
+import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { tags } from "@lezer/highlight";
 
 import { ghostWriting } from "./ghost.js";
@@ -95,8 +96,16 @@ export function makeState(doc, selection, extra = []) {
       editorTheme,
       ghostWriting(requestCompletion),
       imagePaste(),
+      // The panel is CodeMirror's own, styled through the same CSS variables
+      // as the rest of the editor. Top placement matches every other macOS
+      // find bar.
+      search({ top: true }),
+      highlightSelectionMatches(),
       // Cmd+/ belongs to the View menu. defaultKeymap binds it to toggleComment,
       // which would both comment out the line and fight the menu for the chord.
+      // Search bindings before the defaults, so Enter and Escape belong to the
+      // find panel while it is open.
+      keymap.of(searchKeymap),
       keymap.of(
         [...defaultKeymap, ...historyKeymap].filter((binding) => binding.key !== "Mod-/"),
       ),

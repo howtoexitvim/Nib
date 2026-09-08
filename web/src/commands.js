@@ -7,8 +7,14 @@
  * contract.
  */
 
+import { openSearchPanel } from "@codemirror/search";
+
 /** name -> (view, argument) => void */
-export const commands = {};
+export const commands = {
+  find: (view) => openSearchPanel(view),
+  // One panel serves both; it opens with the replace row already showing.
+  replace: (view) => openSearchPanel(view),
+};
 
 /** Adds a command, or replaces one, by name. */
 export function register(name, run) {

@@ -197,3 +197,81 @@ body {
 .preview img {
   max-width: 100%;
 }
+
+/* ---- find panel ---- */
+
+/* CodeMirror ships its own markup here; these rules only re-skin it so it
+   does not look like a different application bolted into the window. */
+.cm-panels {
+  background: var(--nib-bg-raised);
+  color: var(--nib-fg);
+  border-bottom: 1px solid var(--nib-rule);
+  font-family: var(--nib-sans);
+  font-size: 12px;
+}
+
+.cm-panels.cm-panels-top {
+  border-bottom: 1px solid var(--nib-rule);
+}
+
+.cm-panel.cm-search {
+  padding: 7px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.cm-panel.cm-search label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--nib-muted);
+}
+
+.cm-panel.cm-search input[type="text"] {
+  font-family: var(--nib-sans);
+  font-size: 12px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--nib-rule);
+  background: var(--nib-bg);
+  color: var(--nib-fg);
+  min-width: 180px;
+}
+
+.cm-panel.cm-search input[type="text"]:focus {
+  outline: none;
+  border-color: var(--nib-accent);
+}
+
+.cm-panel.cm-search button {
+  font-family: var(--nib-sans);
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 5px;
+  border: 1px solid var(--nib-rule);
+  background: var(--nib-bg);
+  color: var(--nib-fg);
+}
+
+.cm-panel.cm-search button:hover {
+  background: var(--nib-hover);
+}
+
+.cm-panel.cm-search [name="close"] {
+  border: none;
+  background: none;
+  font-size: 17px;
+  color: var(--nib-faint);
+  padding: 0 4px;
+}
+
+/* The active match, distinct from the other highlighted ones. */
+.cm-searchMatch {
+  background: color-mix(in srgb, var(--nib-accent) 22%, transparent);
+}
+
+.cm-searchMatch.cm-searchMatch-selected {
+  background: color-mix(in srgb, var(--nib-accent) 45%, transparent);
+}

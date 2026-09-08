@@ -70,8 +70,16 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         // hardcoded inset that has to be re-guessed on every OS.
         let toolbar = NSToolbar(identifier: "NibMainToolbar")
         toolbar.showsBaselineSeparator = false
+        toolbar.delegate = self
+        toolbar.centeredItemIdentifier = .documentTitle
         window.toolbar = toolbar
         window.toolbarStyle = .unified
+        // AppKit lays the window title out inside the sidebar's titlebar
+        // column, so the filename ends up squeezed over the file tree. Typora
+        // centres it over the whole window; the only way to get that is to
+        // stop AppKit drawing the title and put it in a centred toolbar item
+        // instead.
+        window.titleVisibility = .hidden
 
         // Menu items send to nil so they travel the responder chain, and this
         // controller supplies the actions for them. No splicing is needed or
@@ -143,6 +151,24 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     }
 
     private var sidebarItem: NSSplitViewItem { splitViewController.splitViewItems[0] }
+
+    /// The filename and its folder, centred over the window like Typora's.
+    private let titleLabel: NSTextField = {
+        let field = NSTextField(labelWithString: "")
+        field.alignment = .center
+        field.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+        field.lineBreakMode = .byTruncatingMiddle
+        return field
+    }()
+
+    private let subtitleLabel: NSTextField = {
+        let field = NSTextField(labelWithString: "")
+        field.alignment = .center
+        field.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        field.textColor = .secondaryLabelColor
+        field.lineBreakMode = .byTruncatingMiddle
+        return field
+    }()
 
     // MARK: - Opening
 
@@ -463,6 +489,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     @objc func toggleRenderMode(_ sender: Any?) {
         editor.toggleMode()
 
+
     }
 
     @objc func toggleSidebar(_ sender: Any?) {
@@ -523,10 +550,15 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         let name = currentFileURL?.lastPathComponent
             ?? workspace?.rootURL.lastPathComponent
             ?? "Nib"
+        // The window title is hidden and drawn by the toolbar item instead,
+        // but it still names the window in the Window menu and Mission
+        // Control, so it is kept in step.
         window?.title = name
-        window?.subtitle = currentFileURL != nil
+        titleLabel.stringValue = name
+        subtitleLabel.stringValue = currentFileURL != nil
             ? (workspace?.rootURL.lastPathComponent ?? "")
             : ""
+        subtitleLabel.isHidden = subtitleLabel.stringValue.isEmpty
         window?.representedURL = currentFileURL
     }
 
@@ -593,5 +625,42 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
             controller.selectFile(url)
         }
         present()
+    }
+}
+
+extension NSToolbarItem.Identifier {
+    static let documentTitle = NSToolbarItem.Identifier("NibDocumentTitle")
+}
+
+/// Supplies the centred title item.
+///
+/// The toolbar exists for layout rather than for controls: it makes AppKit
+/// reserve the titlebar band, and it is the only way to centre the document
+/// title over the whole window rather than over the sidebar column.
+extension WorkspaceWindowController: NSToolbarDelegate {
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.documentTitle, .flexibleSpace]
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.flexibleSpace, .documentTitle, .flexibleSpace]
+    }
+
+    func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier identifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        guard identifier == .documentTitle else { return nil }
+
+        let stack = NSStackView(views: [titleLabel, subtitleLabel])
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.spacing = 0
+
+        let item = NSToolbarItem(itemIdentifier: identifier)
+        item.view = stack
+        item.visibilityPriority = .high
+        return item
     }
 }
