@@ -15,7 +15,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MenuBuilder.build()
-        DocumentWindowController.newDocument()
+
+        // Paths on the command line, so `Nib notes.md` works from a shell.
+        // application(_:open:) only covers Finder and `open`, not argv.
+        let paths = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-") }
+        if paths.isEmpty {
+            DocumentWindowController.newDocument()
+        } else {
+            for path in paths {
+                DocumentWindowController.open(url: URL(fileURLWithPath: path))
+            }
+        }
         NSApp.activate(ignoringOtherApps: true)
     }
 

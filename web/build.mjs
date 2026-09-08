@@ -1,8 +1,9 @@
 /**
- * Bundles the editor into `dist/`, which Xcode copies into the app bundle.
+ * Bundles the editor into `dist/`, which the Makefile copies into the app.
  *
- * Everything is inlined and self-contained: the WKWebView loads from a file URL
- * with no network access, so there can be no CDN or remote import at runtime.
+ * Output is an IIFE, not an ES module: WKWebView treats every file:// document
+ * as its own opaque origin, so a `type="module"` script fails the CORS check
+ * and silently never runs. Everything is inlined -- no CDN, no remote import.
  */
 import { cp, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
@@ -19,7 +20,7 @@ const options = {
   entryPoints: [path.join(src, "main.js")],
   outfile: path.join(dist, "editor.js"),
   bundle: true,
-  format: "esm",
+  format: "iife",
   target: ["safari17"],
   sourcemap: watch,
   minify: !watch,

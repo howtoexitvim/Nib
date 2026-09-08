@@ -23,6 +23,14 @@ final class EditorViewController: NSViewController {
         let controller = WKUserContentController()
         controller.add(ScriptHandler(self), name: "completion")
         controller.add(ScriptHandler(self), name: "document")
+        controller.add(ScriptHandler(self), name: "log")
+        // Forward console output and uncaught errors to the native log;
+        // otherwise a failure inside the web layer is completely silent.
+        controller.addUserScript(WKUserScript(
+            source: Self.consoleBridge,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
         config.userContentController = controller
         // The editor is local and offline; nothing should be cached to disk.
         config.websiteDataStore = .nonPersistent()
@@ -47,6 +55,33 @@ final class EditorViewController: NSViewController {
         }
         webView.loadFileURL(index, allowingReadAccessTo: index.deletingLastPathComponent())
     }
+
+    /// Mirrors console output and uncaught errors back to the host.
+    private static let consoleBridge = """
+    (() => {
+      const send = (level, parts) => {
+        try {
+          window.webkit.messageHandlers.log.postMessage({
+            level,
+            text: parts.map((p) => {
+              if (typeof p === 'string') return p;
+              try { return JSON.stringify(p); } catch { return String(p); }
+            }).join(' '),
+          });
+        } catch {}
+      };
+      for (const level of ['log', 'warn', 'error']) {
+        const original = console[level].bind(console);
+        console[level] = (...args) => { send(level, args); original(...args); };
+      }
+      window.addEventListener('error', (e) => {
+        send('error', [e.message + ' @ ' + e.filename + ':' + e.lineno]);
+      });
+      window.addEventListener('unhandledrejection', (e) => {
+        send('error', ['unhandled rejection: ' + e.reason]);
+      });
+    })();
+    """
 
     // MARK: - Editor API
 
@@ -158,6 +193,10 @@ private final class ScriptHandler: NSObject, WKScriptMessageHandler {
                 let suffix = body["suffix"] as? String
             else { return }
             owner?.handleCompletion(id: id, prefix: prefix, suffix: suffix)
+        case "log":
+            let level = body["level"] as? String ?? "log"
+            let text = body["text"] as? String ?? ""
+            NSLog("[nib.web.%@] %@", level, text)
         case "document":
             owner?.handleDocumentEvent(body)
         default:
