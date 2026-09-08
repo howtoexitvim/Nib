@@ -9,11 +9,14 @@
 
 import { openSearchPanel } from "@codemirror/search";
 
+import { formatCommands } from "./format.js";
+
 /** name -> (view, argument) => void */
 export const commands = {
   find: (view) => openSearchPanel(view),
   // One panel serves both; it opens with the replace row already showing.
   replace: (view) => openSearchPanel(view),
+  ...formatCommands,
 };
 
 /** Adds a command, or replaces one, by name. */
