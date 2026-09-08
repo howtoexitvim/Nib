@@ -16,6 +16,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { tags } from "@lezer/highlight";
 
 import { ghostWriting } from "./ghost.js";
+import { imagePaste } from "./paste.js";
 import { requestCompletion } from "./bridge.js";
 
 /**
@@ -93,6 +94,7 @@ export function makeState(doc, selection, extra = []) {
       syntaxHighlighting(proseHighlight),
       editorTheme,
       ghostWriting(requestCompletion),
+      imagePaste(),
       // Cmd+/ belongs to the View menu. defaultKeymap binds it to toggleComment,
       // which would both comment out the line and fight the menu for the chord.
       keymap.of(

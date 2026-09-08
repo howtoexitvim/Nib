@@ -17,6 +17,12 @@ final class EditorViewController: NSViewController {
     /// Mirrors the editor's dirty state for the window's close/save flow.
     private(set) var isDirty = false
     var onDirtyChange: ((Bool) -> Void)?
+    /// Where the open document lives, so pasted images can be written beside
+    /// it. A closure rather than a stored URL, so there is still exactly one
+    /// place that knows which file is open.
+    var documentURL: (() -> URL?)?
+    /// An image landed on disk, so the sidebar can pick up the new folder.
+    var onImageSaved: (() -> Void)?
 
     override func loadView() {
         let config = WKWebViewConfiguration()
@@ -188,10 +194,42 @@ final class EditorViewController: NSViewController {
 
     fileprivate func handleDocumentEvent(_ body: [String: Any]) {
         guard let event = body["event"] as? String else { return }
-        if event == "dirty", let dirty = body["isDirty"] as? Bool {
-            isDirty = dirty
-            onDirtyChange?(dirty)
+        switch event {
+        case "dirty":
+            if let dirty = body["isDirty"] as? Bool {
+                isDirty = dirty
+                onDirtyChange?(dirty)
+            }
+        case "pasteImage":
+            if let id = body["id"] as? Int, let data = body["data"] as? String {
+                handlePastedImage(id: id, base64: data)
+            }
+        default:
+            break
         }
+    }
+
+    /// Writes a pasted image and hands back the Markdown that references it.
+    ///
+    /// The controller does not know where the document lives, so it asks --
+    /// keeping the current file in one place rather than mirroring it here.
+    private func handlePastedImage(id: Int, base64: String) {
+        guard let data = Data(base64Encoded: base64) else {
+            deliverImage(id: id, markdown: "", error: "The pasted image could not be decoded.")
+            return
+        }
+        do {
+            let markdown = try ImageStore.save(data, forDocument: documentURL?())
+            deliverImage(id: id, markdown: markdown, error: nil)
+            onImageSaved?()
+        } catch {
+            deliverImage(id: id, markdown: "", error: error.localizedDescription)
+        }
+    }
+
+    private func deliverImage(id: Int, markdown: String, error: String?) {
+        let errorArg = error.map { jsString($0) } ?? "null"
+        callJS("window.nib.deliverImage(\(id), \(jsString(markdown)), \(errorArg))")
     }
 }
 

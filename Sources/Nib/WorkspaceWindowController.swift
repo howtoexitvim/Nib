@@ -66,6 +66,13 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
             self?.selectFile(url)
         }
         sidebar.attach(menu: makeContextMenu())
+        editor.documentURL = { [weak self] in self?.currentFileURL }
+        editor.onImageSaved = { [weak self] in
+            guard let self, let url = self.currentFileURL else { return }
+            // The .assets folder is hidden from the tree, but its parent may
+            // now hold a folder it did not before.
+            self.workspace?.reload(url.deletingLastPathComponent())
+        }
         updateTitle()
     }
 

@@ -35,6 +35,33 @@ export function requestCompletion({ prefix, suffix }) {
   });
 }
 
+/**
+ * Asks the host to write a pasted image beside the document.
+ *
+ * Resolves to the Markdown to insert. Rejects when there is nowhere to write
+ * -- an unsaved document has no folder to put an assets directory next to.
+ */
+export function requestImageSave(base64) {
+  return new Promise((resolve, reject) => {
+    const id = nextId++;
+    const sent = post("document", { event: "pasteImage", id, data: base64 });
+    if (!sent) {
+      reject(new Error("no host attached"));
+      return;
+    }
+    pending.set(id, { resolve, reject });
+  });
+}
+
+/** Called by Swift once a pasted image is written, or has failed to be. */
+function deliverImage(id, markdown, error) {
+  const entry = pending.get(id);
+  if (!entry) return;
+  pending.delete(id);
+  if (error) entry.reject(new Error(error));
+  else entry.resolve(markdown ?? "");
+}
+
 /** Called by Swift with the result of a completion request. */
 function deliverCompletion(id, text, error) {
   const entry = pending.get(id);
@@ -56,5 +83,5 @@ export function notifyMode(mode) {
 
 /** Surface for Swift to call into. Kept to a minimum and documented here. */
 export function installHostAPI(api) {
-  window.nib = Object.assign(window.nib ?? {}, api, { deliverCompletion });
+  window.nib = Object.assign(window.nib ?? {}, api, { deliverCompletion, deliverImage });
 }
