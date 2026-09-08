@@ -97,17 +97,19 @@ final class SidebarViewController: NSViewController {
 
     var selectedFileURL: URL? { selectedURL() }
 
-    /// The row the context menu was opened on, which is not the selected row.
-    var clickedFileURL: URL? {
-        let row = outlineView.clickedRow
-        guard row >= 0, let box = outlineView.item(atRow: row) as? NodeBox else { return nil }
-        return box.node.url
-    }
+    /// The row an action applies to.
+    ///
+    /// A right-click acts on the row under the pointer, which is not
+    /// necessarily the selected one; the same action from the menu bar has no
+    /// clicked row at all and falls back to the selection.
+    var targetFileURL: URL? { targetBox()?.node.url }
 
-    var clickedNodeIsDirectory: Bool {
-        let row = outlineView.clickedRow
-        guard row >= 0, let box = outlineView.item(atRow: row) as? NodeBox else { return false }
-        return box.node.isDirectory
+    var targetNodeIsDirectory: Bool { targetBox()?.node.isDirectory ?? false }
+
+    private func targetBox() -> NodeBox? {
+        let row = outlineView.clickedRow >= 0 ? outlineView.clickedRow : outlineView.selectedRow
+        guard row >= 0 else { return nil }
+        return outlineView.item(atRow: row) as? NodeBox
     }
 
     func attach(menu: NSMenu) {

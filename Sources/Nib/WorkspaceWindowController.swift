@@ -65,6 +65,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
         sidebar.onSelect = { [weak self] url in
             self?.selectFile(url)
         }
+        sidebar.attach(menu: makeContextMenu())
         updateTitle()
     }
 
@@ -224,6 +225,143 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
         idleSaveTask?.cancel()
         idleSaveTask = nil
         await saveCurrentIfNeeded()
+    }
+
+    // MARK: - File operations from the sidebar
+
+    /// Built here rather than in the sidebar so the actions land on this
+    /// controller directly, with no responder-chain hop for a menu that is
+    /// only ever shown over one view.
+    private func makeContextMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(withTitle: "New File", action: #selector(newFile(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "New Folder", action: #selector(newFolder(_:)), keyEquivalent: "")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Rename…", action: #selector(renameItem(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "Move to Trash", action: #selector(trashItem(_:)), keyEquivalent: "")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Reveal in Finder", action: #selector(revealClicked(_:)), keyEquivalent: "")
+        menu.items.forEach { $0.target = self }
+        return menu
+    }
+
+    /// Where a new item belongs: inside the clicked folder, beside a clicked
+    /// file, or at the root when the click missed every row.
+    private func targetDirectory() -> URL? {
+        guard let workspace else { return nil }
+        guard let clicked = sidebar.targetFileURL else { return workspace.rootURL }
+        return sidebar.targetNodeIsDirectory ? clicked : clicked.deletingLastPathComponent()
+    }
+
+    @objc func newFile(_ sender: Any?) {
+        guard let workspace, let directory = targetDirectory() else { return }
+        prompt(title: "New File", message: "Name for the new file:", value: "Untitled") { name in
+            do {
+                let url = try workspace.createFile(named: name, in: directory)
+                self.selectFile(url)
+            } catch {
+                self.presentError(error, title: "Could not create the file")
+            }
+        }
+    }
+
+    @objc func newFolder(_ sender: Any?) {
+        guard let workspace, let directory = targetDirectory() else { return }
+        prompt(title: "New Folder", message: "Name for the new folder:", value: "Untitled Folder") { name in
+            do {
+                _ = try workspace.createFolder(named: name, in: directory)
+            } catch {
+                self.presentError(error, title: "Could not create the folder")
+            }
+        }
+    }
+
+    @objc func renameItem(_ sender: Any?) {
+        guard let workspace, let url = sidebar.targetFileURL else { return }
+        let isDirectory = sidebar.targetNodeIsDirectory
+        let current = isDirectory
+            ? url.lastPathComponent
+            : (url.lastPathComponent as NSString).deletingPathExtension
+
+        prompt(title: "Rename", message: "New name for \"\(current)\":", value: current) { name in
+            do {
+                let moved = try workspace.rename(url, to: name)
+                // The open file moving out from under the editor would leave
+                // the next save writing to a path that no longer exists.
+                if self.currentFileURL == url.standardizedFileURL {
+                    self.currentFileURL = moved.standardizedFileURL
+                    self.updateTitle()
+                    WorkspaceStore.saveFile(moved)
+                    self.sidebar.select(moved)
+                }
+            } catch {
+                self.presentError(error, title: "Could not rename \(url.lastPathComponent)")
+            }
+        }
+    }
+
+    @objc func trashItem(_ sender: Any?) {
+        guard let workspace, let url = sidebar.targetFileURL else { return }
+        // No confirmation: it goes to the Trash, so it is recoverable, and a
+        // dialog on every delete is the kind of friction Typora does without.
+        do {
+            let wasOpen = currentFileURL == url.standardizedFileURL
+            try workspace.trash(url)
+            // A document's images are its own; leaving them orphans the folder.
+            let assets = Workspace.assetsDirectory(for: url)
+            if !sidebar.targetNodeIsDirectory,
+               FileManager.default.fileExists(atPath: assets.path) {
+                try? FileManager.default.trashItem(at: assets, resultingItemURL: nil)
+            }
+            if wasOpen { closeCurrentFile() }
+        } catch {
+            presentError(error, title: "Could not move \(url.lastPathComponent) to the Trash")
+        }
+    }
+
+    @objc func revealClicked(_ sender: Any?) {
+        guard let url = sidebar.targetFileURL ?? currentFileURL ?? workspace?.rootURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    /// Empties the editor after the open file goes away.
+    private func closeCurrentFile() {
+        currentFileURL = nil
+        editor.setDocument("", path: "")
+        editor.markSaved()
+        WorkspaceStore.saveFile(nil)
+        updateTitle()
+    }
+
+    /// A one-field sheet. AppKit has no text-input alert, so this is the
+    /// standard accessory-view construction.
+    private func prompt(
+        title: String,
+        message: String,
+        value: String,
+        onAccept: @escaping (String) -> Void
+    ) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Cancel")
+
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.stringValue = value
+        field.placeholderString = "Name"
+        alert.accessoryView = field
+        // Without this the sheet opens with the buttons focused and typing
+        // does nothing.
+        alert.window.initialFirstResponder = field
+
+        alert.beginSheetModal(for: window) { response in
+            guard response == .alertFirstButtonReturn else { return }
+            let name = field.stringValue.trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { return }
+            onAccept(name)
+        }
     }
 
     // MARK: - Menu actions

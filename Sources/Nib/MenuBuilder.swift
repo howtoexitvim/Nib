@@ -44,6 +44,16 @@ enum MenuBuilder {
 
     private static func fileMenu() -> NSMenuItem {
         let (item, menu) = submenu("File")
+        menu.addItem(withTitle: "New File", action: #selector(WorkspaceWindowController.newFile(_:)), keyEquivalent: "n")
+
+        let newFolder = NSMenuItem(
+            title: "New Folder",
+            action: #selector(WorkspaceWindowController.newFolder(_:)),
+            keyEquivalent: "n"
+        )
+        newFolder.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(newFolder)
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Open…", action: #selector(AppDelegate.openDocument(_:)), keyEquivalent: "o")
 
         let openFolder = NSMenuItem(
@@ -59,6 +69,10 @@ enum MenuBuilder {
         let saveAs = NSMenuItem(title: "Save As…", action: #selector(WorkspaceWindowController.saveDocumentAs(_:)), keyEquivalent: "s")
         saveAs.keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(saveAs)
+        menu.addItem(.separator())
+
+        menu.addItem(withTitle: "Rename…", action: #selector(WorkspaceWindowController.renameItem(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "Move to Trash", action: #selector(WorkspaceWindowController.trashItem(_:)), keyEquivalent: "")
         menu.addItem(.separator())
 
         let reveal = NSMenuItem(
