@@ -23,6 +23,10 @@ final class EditorViewController: NSViewController {
     var documentURL: (() -> URL?)?
     /// An image landed on disk, so the sidebar can pick up the new folder.
     var onImageSaved: (() -> Void)?
+    /// Which mode the editor is showing. The web layer is the authority --
+    /// it owns the toggle -- and reports every change here.
+    private(set) var mode: String = "source"
+    var onModeChange: ((String) -> Void)?
 
     override func loadView() {
         let config = WKWebViewConfiguration()
@@ -144,6 +148,13 @@ final class EditorViewController: NSViewController {
         callJS("window.nib.markSaved()")
     }
 
+    /// Sends a command to the editor. The web layer owns the buffer, so every
+    /// editing action is expressed as a message rather than performed here.
+    func send(_ command: String, _ argument: String? = nil) {
+        let arg = argument.map { jsString($0) } ?? "null"
+        callJS("window.nib.command(\(jsString(command)), \(arg))")
+    }
+
     func toggleMode() {
         callJS("window.nib.toggleMode()")
     }
@@ -208,6 +219,11 @@ final class EditorViewController: NSViewController {
             if let dirty = body["isDirty"] as? Bool {
                 isDirty = dirty
                 onDirtyChange?(dirty)
+            }
+        case "mode":
+            if let mode = body["mode"] as? String {
+                self.mode = mode
+                onModeChange?(mode)
             }
         case "pasteImage":
             if let id = body["id"] as? Int, let data = body["data"] as? String {

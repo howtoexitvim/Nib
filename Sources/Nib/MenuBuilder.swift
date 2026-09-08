@@ -12,6 +12,7 @@ enum MenuBuilder {
         main.addItem(appMenu())
         main.addItem(fileMenu())
         main.addItem(editMenu())
+        main.addItem(formatMenu())
         main.addItem(viewMenu())
         main.addItem(windowMenu())
         return main
@@ -98,6 +99,57 @@ enum MenuBuilder {
         menu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         menu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         menu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        menu.addItem(.separator())
+
+        // Cmd+F is Find, as it is everywhere else. Full Screen gives up the
+        // chord and takes the standard Ctrl+Cmd+F instead.
+        menu.addItem(withTitle: "Find", action: #selector(WorkspaceWindowController.performFind(_:)), keyEquivalent: "f")
+
+        let replace = NSMenuItem(
+            title: "Find and Replace",
+            action: #selector(WorkspaceWindowController.performReplace(_:)),
+            keyEquivalent: "f"
+        )
+        replace.keyEquivalentModifierMask = [.command, .option]
+        menu.addItem(replace)
+
+        let findInFolder = NSMenuItem(
+            title: "Find in Folder…",
+            action: #selector(WorkspaceWindowController.performFindInFolder(_:)),
+            keyEquivalent: "f"
+        )
+        findInFolder.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(findInFolder)
+        return item
+    }
+
+    /// Markdown formatting. The commands write the source characters -- there
+    /// is no rich-text model to toggle -- so they only apply in source mode.
+    private static func formatMenu() -> NSMenuItem {
+        let (item, menu) = submenu("Format")
+        menu.addItem(withTitle: "Bold", action: #selector(WorkspaceWindowController.formatBold(_:)), keyEquivalent: "b")
+        menu.addItem(withTitle: "Italic", action: #selector(WorkspaceWindowController.formatItalic(_:)), keyEquivalent: "i")
+        menu.addItem(withTitle: "Code", action: #selector(WorkspaceWindowController.formatCode(_:)), keyEquivalent: "`")
+        menu.addItem(withTitle: "Link", action: #selector(WorkspaceWindowController.formatLink(_:)), keyEquivalent: "k")
+        menu.addItem(.separator())
+
+        for level in 1...6 {
+            let heading = NSMenuItem(
+                title: "Heading \(level)",
+                action: #selector(WorkspaceWindowController.formatHeading(_:)),
+                keyEquivalent: "\(level)"
+            )
+            // The level travels on the item, so one action serves all six.
+            heading.tag = level
+            menu.addItem(heading)
+        }
+        let paragraph = NSMenuItem(
+            title: "Paragraph",
+            action: #selector(WorkspaceWindowController.formatHeading(_:)),
+            keyEquivalent: "0"
+        )
+        paragraph.tag = 0
+        menu.addItem(paragraph)
         return item
     }
 
@@ -116,8 +168,23 @@ enum MenuBuilder {
         )
         sidebar.keyEquivalentModifierMask = [.control, .command]
         menu.addItem(sidebar)
+        let outline = NSMenuItem(
+            title: "Outline",
+            action: #selector(WorkspaceWindowController.toggleOutline(_:)),
+            keyEquivalent: "o"
+        )
+        outline.keyEquivalentModifierMask = [.control, .command]
+        menu.addItem(outline)
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+
+        // Cmd+F went to Find; this is the macOS-standard chord anyway.
+        let fullScreen = NSMenuItem(
+            title: "Enter Full Screen",
+            action: #selector(NSWindow.toggleFullScreen(_:)),
+            keyEquivalent: "f"
+        )
+        fullScreen.keyEquivalentModifierMask = [.control, .command]
+        menu.addItem(fullScreen)
         return item
     }
 

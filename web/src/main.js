@@ -12,6 +12,7 @@ import { EditorView } from "@codemirror/view";
 import { makeState } from "./state.js";
 import { renderMarkdown } from "./preview.js";
 import { installHostAPI, notifyDirty, notifyMode } from "./bridge.js";
+import { commands } from "./commands.js";
 
 const root = document.getElementById("root");
 const previewEl = document.getElementById("preview");
@@ -105,6 +106,23 @@ installHostAPI({
   markSaved() {
     savedDoc = view.state.doc.toString();
     notifyDirty(false);
+  },
+  /**
+   * Runs a command sent by a menu item.
+   *
+   * One entry point rather than one host function per command, so adding a
+   * menu item does not mean adding a bridge function too. Commands that need
+   * a cursor are refused in preview, which has none.
+   */
+  command(name, argument) {
+    if (mode !== "source") return;
+    const run = commands[name];
+    if (!run) {
+      console.warn("[nib] unknown command: " + name);
+      return;
+    }
+    run(view, argument);
+    view.focus();
   },
   setMode,
   toggleMode,

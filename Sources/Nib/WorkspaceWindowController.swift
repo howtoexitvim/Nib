@@ -16,7 +16,7 @@ enum EditorError: LocalizedError {
 /// content process at 30-60MB, so a window per file does not survive a folder
 /// of any size. Switching files swaps the editor's contents instead.
 @MainActor
-final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
+final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSMenuItemValidation {
     private let editor = EditorViewController()
     private let sidebar = SidebarViewController()
     private let splitViewController = NSSplitViewController()
@@ -57,6 +57,12 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
         window.setContentSize(NSSize(width: 1060, height: 720))
         window.center()
         window.setFrameAutosaveName("NibMainWindow")
+        // Menu items send to nil so they travel the responder chain, but a
+        // window controller is not in that chain by default -- without this,
+        // every action here is unhandled and validateMenuItem never runs, so
+        // the whole Format menu stays greyed out.
+        nextResponder = window.contentViewController?.nextResponder
+        window.contentViewController?.nextResponder = self
 
         editor.onDirtyChange = { [weak self] dirty in
             self?.window?.isDocumentEdited = dirty
@@ -67,6 +73,11 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
         }
         sidebar.attach(menu: makeContextMenu())
         editor.documentURL = { [weak self] in self?.currentFileURL }
+        editor.onModeChange = { [weak self] _ in
+            // Menu titles and enablement follow the mode, and AppKit only
+            // re-validates when something prompts it.
+            self?.window?.toolbar?.validateVisibleItems()
+        }
         editor.onImageSaved = { [weak self] in
             guard let self, let url = self.currentFileURL else { return }
             // The .assets folder is hidden from the tree, but its parent may
@@ -386,6 +397,36 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    // MARK: - Editing commands
+    //
+    // These forward to the web layer, which owns the buffer. They apply in
+    // source mode only: the preview is a read-only projection with no cursor,
+    // which is also what keeps ghost writing sound.
+
+    @objc func performFind(_ sender: Any?) { editor.send("find") }
+    @objc func performReplace(_ sender: Any?) { editor.send("replace") }
+    @objc func formatBold(_ sender: Any?) { editor.send("bold") }
+    @objc func formatItalic(_ sender: Any?) { editor.send("italic") }
+    @objc func formatCode(_ sender: Any?) { editor.send("code") }
+    @objc func formatLink(_ sender: Any?) { editor.send("link") }
+
+    @objc func formatHeading(_ sender: Any?) {
+        // The level rides on the menu item's tag, so one action serves all six
+        // headings plus Paragraph.
+        let level = (sender as? NSMenuItem)?.tag ?? 0
+        editor.send("heading", String(level))
+    }
+
+    @objc func performFindInFolder(_ sender: Any?) {
+        // Arrives with the search UI, in a later commit.
+        NSSound.beep()
+    }
+
+    @objc func toggleOutline(_ sender: Any?) {
+        // Arrives with the outline pane, in a later commit.
+        NSSound.beep()
+    }
+
     @objc func toggleRenderMode(_ sender: Any?) {
         editor.toggleMode()
     }
@@ -397,6 +438,49 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
     @objc func revealInFinder(_ sender: Any?) {
         guard let url = currentFileURL ?? workspace?.rootURL else { return }
         NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    // MARK: - Menu validation
+
+    /// Greys out what cannot be done right now, and keeps toggle titles honest.
+    ///
+    /// Without this every item is always enabled, so Save on an empty window
+    /// and Bold in the preview both look available and then do nothing.
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        let isSourceMode = editor.mode == "source"
+
+        switch menuItem.action {
+        case #selector(saveDocument(_:)):
+            return currentFileURL != nil || editor.isDirty
+
+        case #selector(renameItem(_:)), #selector(trashItem(_:)):
+            return sidebar.targetFileURL != nil
+
+        case #selector(newFile(_:)), #selector(newFolder(_:)),
+             #selector(performFindInFolder(_:)):
+            return workspace != nil
+
+        case #selector(revealInFinder(_:)), #selector(revealClicked(_:)):
+            return currentFileURL != nil || workspace != nil
+
+        case #selector(performFind(_:)), #selector(performReplace(_:)),
+             #selector(formatBold(_:)), #selector(formatItalic(_:)),
+             #selector(formatCode(_:)), #selector(formatLink(_:)),
+             #selector(formatHeading(_:)):
+            // The preview has no cursor to act on.
+            return isSourceMode && currentFileURL != nil
+
+        case #selector(toggleRenderMode(_:)):
+            menuItem.title = isSourceMode ? "Show Preview" : "Show Source"
+            return currentFileURL != nil || editor.isDirty
+
+        case #selector(toggleSidebar(_:)):
+            menuItem.title = sidebarItem.isCollapsed ? "Show Sidebar" : "Hide Sidebar"
+            return true
+
+        default:
+            return true
+        }
     }
 
     // MARK: - Presentation
