@@ -22,6 +22,10 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
     private let splitViewController = NSSplitViewController()
 
     private var workspace: Workspace?
+    /// Debounces autosave while typing, so a write happens after a pause
+    /// rather than on every keystroke.
+    private var idleSaveTask: Task<Void, Never>?
+    private static let idleSaveDelay = Duration.seconds(2)
     /// The file being edited. Lives here, not on `Workspace`, so the workspace
     /// stays a model with no editor state in it.
     private(set) var currentFileURL: URL?
@@ -56,6 +60,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
 
         editor.onDirtyChange = { [weak self] dirty in
             self?.window?.isDocumentEdited = dirty
+            if dirty { self?.scheduleIdleSave() }
         }
         sidebar.onSelect = { [weak self] url in
             self?.selectFile(url)
@@ -202,6 +207,25 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+    /// Restarts the idle countdown. Typing keeps pushing it back; a pause
+    /// lets it fire.
+    private func scheduleIdleSave() {
+        idleSaveTask?.cancel()
+        idleSaveTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: Self.idleSaveDelay)
+            guard !Task.isCancelled, let self else { return }
+            await self.saveCurrentIfNeeded()
+        }
+    }
+
+    /// Saves now, cancelling any pending idle save so it cannot write again
+    /// on top of what just landed.
+    func saveNow() async {
+        idleSaveTask?.cancel()
+        idleSaveTask = nil
+        await saveCurrentIfNeeded()
+    }
+
     // MARK: - Menu actions
 
     @objc func openFolderWithPanel(_ sender: Any?) {
@@ -257,7 +281,14 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: - Window lifecycle
 
+    /// Leaving the window is a natural save point -- switching to another app
+    /// and coming back should not find unsaved work.
+    func windowDidResignKey(_ notification: Notification) {
+        Task { @MainActor in await saveNow() }
+    }
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        idleSaveTask?.cancel()
         guard editor.isDirty else { return true }
         // Auto-save, no prompt: refuse the close now and perform it once the
         // bytes are on disk.

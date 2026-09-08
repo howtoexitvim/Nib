@@ -35,6 +35,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
+    /// Quitting must not drop unsaved edits. The write is async, so termination
+    /// is deferred until it lands rather than answered immediately.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        Task { @MainActor in
+            await WorkspaceWindowController.main().saveNow()
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
     /// Re-shows the window after it was closed, since there is only ever one.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         if !hasVisibleWindows { WorkspaceWindowController.present() }
