@@ -8,9 +8,9 @@
  * mapping problem that makes WYSIWYG Markdown editors so hard.
  */
 import { EditorView } from "@codemirror/view";
-import { marked } from "marked";
 
 import { makeState } from "./state.js";
+import { renderMarkdown } from "./preview.js";
 import { installHostAPI, notifyDirty, notifyMode } from "./bridge.js";
 
 const root = document.getElementById("root");
@@ -37,10 +37,8 @@ const view = new EditorView({
   state: makeState("", undefined, [dirtyListener]),
 });
 
-marked.setOptions({ gfm: true, breaks: false });
-
 function renderPreview() {
-  previewEl.innerHTML = marked.parse(view.state.doc.toString());
+  previewEl.innerHTML = renderMarkdown(view.state.doc.toString());
 }
 
 /** Remembers where the cursor and scroll were in the file being left. */

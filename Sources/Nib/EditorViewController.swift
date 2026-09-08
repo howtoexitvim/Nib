@@ -38,6 +38,15 @@ final class EditorViewController: NSViewController {
             forMainFrameOnly: true
         ))
         config.userContentController = controller
+        // Serves the open document's images to the preview. Registered on the
+        // configuration, which is why it has to be set before the WebView is
+        // created -- a handler cannot be added afterwards.
+        config.setURLSchemeHandler(
+            AssetSchemeHandler(baseDirectory: { [weak self] in
+                self?.documentURL?()?.deletingLastPathComponent()
+            }),
+            forURLScheme: AssetSchemeHandler.scheme
+        )
         // The editor is local and offline; nothing should be cached to disk.
         config.websiteDataStore = .nonPersistent()
 
