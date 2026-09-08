@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nib</title>
+    <link rel="stylesheet" href="./editor.css" />
+  </head>
+  <body>
+    <!-- Exactly one of these is visible at a time. The preview is inert: no
+         contenteditable, no input handlers, so there is no rendered mode in
+         which ghost text could fire. -->
+    <div id="root"></div>
+    <article id="preview" class="preview" tabindex="0" hidden></article>
+    <script type="module" src="./editor.js"></script>
+  </body>
+</html>
