@@ -23,6 +23,8 @@ final class EditorViewController: NSViewController {
     var documentURL: (() -> URL?)?
     /// An image landed on disk, so the sidebar can pick up the new folder.
     var onImageSaved: (() -> Void)?
+    /// A link to a local file was clicked in the preview.
+    var onOpenFile: ((URL) -> Void)?
     /// Which mode the editor is showing. The web layer is the authority --
     /// it owns the toggle -- and reports every change here.
     private(set) var mode: String = "source"
@@ -282,6 +284,42 @@ final class EditorViewController: NSViewController {
 }
 
 extension EditorViewController: WKNavigationDelegate {
+    /// Keeps the editor from navigating away from itself.
+    ///
+    /// A link clicked in the preview would otherwise load that page *in place
+    /// of the editor*, leaving the app showing a website with no way back.
+    /// External links go to the browser; nothing else is allowed to navigate.
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction
+    ) async -> WKNavigationActionPolicy {
+        guard navigationAction.navigationType == .linkActivated,
+              let url = navigationAction.request.url else {
+            // The initial load of the bundled page, and nothing else.
+            return .allow
+        }
+        switch Self.route(url) {
+        case .openExternally: NSWorkspace.shared.open(url)
+        case .openInEditor: onOpenFile?(url.standardizedFileURL)
+        case .ignore: break
+        }
+        return .cancel
+    }
+
+    /// Where a clicked link should go. Separated from the delegate so the
+    /// decision is testable without a WebView.
+    enum LinkDestination: Equatable { case openExternally, openInEditor, ignore }
+
+    static func route(_ url: URL) -> LinkDestination {
+        if let scheme = url.scheme?.lowercased(), ["http", "https", "mailto"].contains(scheme) {
+            return .openExternally
+        }
+        if url.isFileURL { return .openInEditor }
+        // Anything else -- javascript:, data:, an unknown scheme -- is not
+        // something a note should be able to launch.
+        return .ignore
+    }
+
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
         // A reload invalidates the loaded page, so queued work must wait again
         // rather than run against a document that is being torn down.

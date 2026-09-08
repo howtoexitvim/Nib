@@ -121,6 +121,19 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         editor.onOutlineChange = { [weak self] headings in
             self?.sidebarContainer.outline.show(headings)
         }
+        editor.onOpenFile = { [weak self] url in
+            guard let self else { return }
+            // Only markdown, and only inside the workspace: a link should not
+            // be able to pull arbitrary files into the editor.
+            guard FileNode.markdownExtensions.contains(url.pathExtension.lowercased()),
+                  let root = self.workspace?.rootURL,
+                  url.path.hasPrefix(root.path + "/") || url.path == root.path
+            else {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+                return
+            }
+            self.selectFile(url)
+        }
         sidebarContainer.search.rootURL = { [weak self] in self?.workspace?.rootURL }
         sidebarContainer.search.onSelect = { [weak self] hit in
             guard let self else { return }
@@ -188,6 +201,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         let field = NSTextField(labelWithString: "")
         field.alignment = .center
         field.lineBreakMode = .byTruncatingMiddle
+        field.cell?.usesSingleLineMode = true
         return field
     }()
 
@@ -572,6 +586,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         editor.toggleMode()
 
 
+
     }
 
     @objc func toggleSidebar(_ sender: Any?) {
@@ -775,6 +790,15 @@ extension WorkspaceWindowController: NSToolbarDelegate {
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
         guard identifier == .documentTitle else { return nil }
+
+        // 38pt is AppKit's floor for .unifiedCompact: measured, the band stays
+        // 38 whether this label is constrained to 16pt or 14pt, because the
+        // traffic lights (which sit at 11..27) set the minimum. Going thinner
+        // would mean dropping the toolbar and drawing the band by hand, which
+        // is what previously left the editor half of the titlebar with nothing
+        // to drag the window by.
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.heightAnchor.constraint(equalToConstant: 16).isActive = true
 
         let item = NSToolbarItem(itemIdentifier: identifier)
         item.view = titleLabel
