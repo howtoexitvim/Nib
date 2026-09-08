@@ -12,7 +12,7 @@ import { EditorState } from "@codemirror/state";
 import { EditorView, drawSelection, highlightActiveLine, keymap, rectangularSelection } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { markdown } from "@codemirror/lang-markdown";
+import { markdown, markdownKeymap } from "@codemirror/lang-markdown";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { tags } from "@lezer/highlight";
 
@@ -106,6 +106,10 @@ export function makeState(doc, selection, extra = []) {
       // Search bindings before the defaults, so Enter and Escape belong to the
       // find panel while it is open.
       keymap.of(searchKeymap),
+      // Enter continues a list or blockquote, Backspace removes the marker --
+      // the behaviour every Markdown editor has and typing without feels
+      // broken. Ahead of defaultKeymap, which binds a plain newline to Enter.
+      keymap.of(markdownKeymap),
       keymap.of(
         [...defaultKeymap, ...historyKeymap].filter((binding) => binding.key !== "Mod-/"),
       ),

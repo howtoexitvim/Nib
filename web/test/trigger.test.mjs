@@ -108,6 +108,20 @@ test("switching files rebuilds the state instead of dispatching a change", () =>
   assert.ok(main.includes("view.setState(makeState("));
 });
 
+test("Enter continues a list, via the Markdown keymap", () => {
+  // Without this binding Enter inserts a plain newline and typing a list
+  // means retyping "- " on every line.
+  const state = readFileSync(new URL("../src/state.js", import.meta.url), "utf8");
+  assert.ok(state.includes("keymap.of(markdownKeymap)"));
+  // It has to come before the defaults in the extension list, since
+  // defaultKeymap binds Enter to a plain newline. Compare the keymap.of
+  // calls, not the imports, which are ordered differently.
+  assert.ok(
+    state.indexOf("keymap.of(markdownKeymap)") < state.indexOf("...defaultKeymap"),
+    "markdownKeymap must precede defaultKeymap in the extension list"
+  );
+});
+
 test("there are exactly two modes", () => {
   const main = readFileSync(new URL("../src/main.js", import.meta.url), "utf8");
   assert.ok(main.includes('setMode(mode === "source" ? "preview" : "source")'));
