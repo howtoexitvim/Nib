@@ -97,8 +97,6 @@ final class SidebarViewController: NSViewController {
         outlineView.scrollRowToVisible(row)
     }
 
-    var selectedFileURL: URL? { selectedURL() }
-
     /// The row an action applies to.
     ///
     /// A right-click acts on the row under the pointer, which is not

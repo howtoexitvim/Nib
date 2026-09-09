@@ -219,7 +219,6 @@ installHostAPI({
   applyAppearance,
   setMode,
   toggleMode,
-  getMode: () => mode,
   focus: () => (mode === "source" ? view.focus() : previewEl.focus()),
 });
 
