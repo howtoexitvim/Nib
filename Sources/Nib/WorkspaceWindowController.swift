@@ -260,10 +260,48 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
 
     /// Writes the open file if it has unsaved edits. `true` means it is safe to
     /// move on -- nothing to save, or the save landed.
+    ///
+    /// An untitled buffer has nowhere to write, so the silent triggers (idle,
+    /// blur, file switch) skip it rather than prompting mid-typing.
+    /// `saveBeforeLeaving()` is the one that asks.
     @discardableResult
     func saveCurrentIfNeeded() async -> Bool {
         guard editor.isDirty, currentFileURL != nil else { return true }
         return await save()
+    }
+
+    /// Saves on the way out, asking where to put an untitled buffer.
+    ///
+    /// Typora's behaviour: autosave never interrupts, but closing or quitting
+    /// with unsaved work in a document that has no file yet puts up Save As
+    /// rather than silently dropping it. Returns false only when the user
+    /// cancelled, which means "do not leave".
+    func saveBeforeLeaving() async -> Bool {
+        // A pending idle save would otherwise fire after this decision.
+        idleSaveTask?.cancel()
+        idleSaveTask = nil
+        guard editor.isDirty else { return true }
+        if currentFileURL != nil { return await save() }
+
+        let alert = NSAlert()
+        alert.messageText = "Save this document before closing?"
+        alert.informativeText = "It has never been saved, so Nib does not know where to put it."
+        alert.addButton(withTitle: "Save…")
+        alert.addButton(withTitle: "Discard")
+        alert.addButton(withTitle: "Cancel")
+        alert.alertStyle = .warning
+
+        let response: NSApplication.ModalResponse
+        if let window {
+            response = await alert.beginSheetModal(for: window)
+        } else {
+            response = alert.runModal()
+        }
+        switch response {
+        case .alertFirstButtonReturn: return await saveAs()
+        case .alertSecondButtonReturn: return true
+        default: return false
+        }
     }
 
     /// Writes the buffer to the current file, reporting whether it landed.
@@ -295,29 +333,41 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     }
 
     @objc func saveDocumentAs(_ sender: Any?) {
+        Task { await saveAs() }
+    }
+
+    /// Runs the Save As sheet and writes, reporting whether it landed.
+    ///
+    /// Awaitable, unlike a completion-handler sheet, because closing and
+    /// quitting have to know whether the user picked a file or cancelled
+    /// before they decide to proceed.
+    @discardableResult
+    private func saveAs() async -> Bool {
+        guard let window else { return false }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
         panel.nameFieldStringValue = currentFileURL?.lastPathComponent ?? "Untitled.md"
         panel.directoryURL = workspace?.rootURL
-        panel.beginSheetModal(for: window!) { [weak self] response in
-            guard response == .OK, let url = panel.url, let self else { return }
-            Task { @MainActor in
-                guard let text = await self.editor.documentText() else {
-                    self.presentError(EditorError.unreadable, title: "Could not save \(url.lastPathComponent)")
-                    return
-                }
-                do {
-                    try text.write(to: url, atomically: true, encoding: .utf8)
-                    self.currentFileURL = url.standardizedFileURL
-                    self.editor.markSaved()
-                    self.updateTitle()
-                    WorkspaceStore.saveFile(url)
-                    self.workspace?.reload(url.deletingLastPathComponent())
-                    self.sidebar.select(url)
-                } catch {
-                    self.presentError(error, title: "Could not save \(url.lastPathComponent)")
-                }
-            }
+
+        let response = await panel.beginSheetModal(for: window)
+        guard response == .OK, let url = panel.url else { return false }
+
+        guard let text = await editor.documentText() else {
+            presentError(EditorError.unreadable, title: "Could not save \(url.lastPathComponent)")
+            return false
+        }
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            currentFileURL = url.standardizedFileURL
+            editor.markSaved()
+            updateTitle()
+            WorkspaceStore.saveFile(url)
+            workspace?.reload(url.deletingLastPathComponent())
+            sidebar.select(url)
+            return true
+        } catch {
+            presentError(error, title: "Could not save \(url.lastPathComponent)")
+            return false
         }
     }
 
@@ -722,7 +772,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         // Auto-save, no prompt: refuse the close now and perform it once the
         // bytes are on disk.
         Task { @MainActor in
-            if await saveCurrentIfNeeded() { self.close() }
+            if await saveBeforeLeaving() { self.close() }
         }
         return false
     }

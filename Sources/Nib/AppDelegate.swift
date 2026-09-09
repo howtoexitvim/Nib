@@ -42,12 +42,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
-    /// Quitting must not drop unsaved edits. The write is async, so termination
-    /// is deferred until it lands rather than answered immediately.
+    /// Quitting must not drop unsaved edits.
+    ///
+    /// The write is async, so termination is deferred rather than answered
+    /// immediately. An untitled buffer gets a Save As prompt here, and
+    /// cancelling it cancels the quit -- silently discarding work someone
+    /// never had a chance to name would be the worst outcome.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         Task { @MainActor in
-            await WorkspaceWindowController.main().saveNow()
-            NSApp.reply(toApplicationShouldTerminate: true)
+            let mayQuit = await WorkspaceWindowController.main().saveBeforeLeaving()
+            NSApp.reply(toApplicationShouldTerminate: mayQuit)
         }
         return .terminateLater
     }
