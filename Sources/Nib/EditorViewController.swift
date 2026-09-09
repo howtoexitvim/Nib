@@ -174,8 +174,11 @@ final class EditorViewController: NSViewController {
     }
 
     /// Puts the cursor on a line, for the outline pane.
-    func scrollToLine(_ line: Int) {
-        callJS("window.nib.scrollToLine(\(line))")
+    /// Reveals a line. Passing the searched-for text selects it and forces
+    /// source mode, since the preview has no cursor to land on.
+    func scrollToLine(_ line: Int, selecting match: String? = nil) {
+        let arg = match.map { jsString($0) } ?? "null"
+        callJS("window.nib.scrollToLine(\(line), \(arg))")
     }
 
     /// Pushes theme and typography into the page.

@@ -23,6 +23,7 @@ final class SearchViewController: NSViewController {
 
     override func loadView() {
         field.placeholderString = "Search in folder"
+        field.delegate = self
         field.sendsSearchStringImmediately = false
         // Fires as you type; the debounce below keeps that affordable.
         field.sendsWholeSearchString = false
@@ -76,9 +77,40 @@ final class SearchViewController: NSViewController {
         view = root
     }
 
+    /// What was searched for, so a result can be highlighted when opened.
+    var currentQuery: String { field.stringValue.trimmingCharacters(in: .whitespaces) }
+
     /// Puts the cursor in the field, for the menu command.
     func focusField() {
         view.window?.makeFirstResponder(field)
+    }
+
+    /// Whether a query is worth walking the folder for.
+    ///
+    /// Two characters for Latin -- one letter matches nearly everything, and
+    /// the first keystroke should not scan the whole folder. But one CJK
+    /// character is a whole word (搜, 猫, 书), so requiring two there means a
+    /// single-character search silently does nothing, which reads as "Chinese
+    /// search is broken".
+    nonisolated static func isSearchable(_ query: String) -> Bool {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty { return false }
+        if trimmed.count >= 2 { return true }
+        return trimmed.unicodeScalars.allSatisfy(isIdeographic)
+    }
+
+    /// Han, Hiragana, Katakana, Hangul: scripts where one character is a word.
+    nonisolated private static func isIdeographic(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x3040...0x30FF,   // kana
+             0x3400...0x4DBF,   // CJK extension A
+             0x4E00...0x9FFF,   // CJK unified
+             0xF900...0xFAFF,   // compatibility ideographs
+             0xAC00...0xD7AF:   // hangul syllables
+            return true
+        default:
+            return false
+        }
     }
 
     @objc private func queryChanged() {
@@ -87,9 +119,7 @@ final class SearchViewController: NSViewController {
         hits = []
         tableView.reloadData()
 
-        guard query.trimmingCharacters(in: .whitespaces).count >= 2 else {
-            // One character matches nearly everything; waiting for two keeps
-            // the first keystroke from walking the whole folder.
+        guard Self.isSearchable(query) else {
             statusLabel.stringValue = ""
             return
         }
@@ -132,6 +162,22 @@ final class SearchViewController: NSViewController {
         let row = tableView.clickedRow
         guard hits.indices.contains(row) else { return }
         onSelect?(hits[row])
+    }
+}
+
+extension SearchViewController: NSSearchFieldDelegate {
+    /// Skips searching while an input method is still composing.
+    ///
+    /// Typing 搜索 with pinyin sends "s", "so", "sou"… as the composition
+    /// builds; each is a real edit to the field, so each would kick off a walk
+    /// of the whole folder for a string the user never meant to search for.
+    /// Waiting until the composition commits also means the first search sees
+    /// the Chinese, not the romanisation.
+    func controlTextDidChange(_ notification: Notification) {
+        guard let field = notification.object as? NSSearchField else { return }
+        let editor = field.currentEditor() as? NSTextView
+        if editor?.hasMarkedText() == true { return }
+        queryChanged()
     }
 }
 

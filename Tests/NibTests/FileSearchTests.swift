@@ -86,3 +86,40 @@ struct FileSearchTests {
         #expect(await collect("absent", in: root).isEmpty)
     }
 }
+
+@Suite("Which queries are worth searching for")
+struct SearchableQueryTests {
+    @Test("two Latin characters is the minimum")
+    func latinMinimum() {
+        #expect(!SearchViewController.isSearchable("a"))
+        #expect(SearchViewController.isSearchable("ab"))
+    }
+
+    @Test("one CJK character is a whole word")
+    func singleIdeograph() {
+        // Requiring two would make a single-character search silently do
+        // nothing, which reads as "Chinese search is broken".
+        #expect(SearchViewController.isSearchable("搜"))
+        #expect(SearchViewController.isSearchable("猫"))
+        #expect(SearchViewController.isSearchable("あ"))
+        #expect(SearchViewController.isSearchable("한"))
+    }
+
+    @Test("empty or whitespace searches for nothing")
+    func emptyQuery() {
+        #expect(!SearchViewController.isSearchable(""))
+        #expect(!SearchViewController.isSearchable("   "))
+    }
+
+    @Test("a single character that is not ideographic still needs a second")
+    func singleLatinRejected() {
+        #expect(!SearchViewController.isSearchable("x"))
+        #expect(!SearchViewController.isSearchable("1"))
+        #expect(!SearchViewController.isSearchable("#"))
+    }
+
+    @Test("whitespace around a single ideograph is trimmed")
+    func trimsAroundIdeograph() {
+        #expect(SearchViewController.isSearchable("  搜  "))
+    }
+}

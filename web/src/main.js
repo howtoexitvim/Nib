@@ -177,11 +177,36 @@ installHostAPI({
     view.focus();
   },
   /** Puts the cursor on a heading the outline was clicked on. */
-  scrollToLine(line) {
-    const offset = offsetOfLine(view.state.doc.toString(), line);
+  /**
+   * Reveals a line, optionally selecting the text that was searched for.
+   *
+   * Switches to source first when a match is given: the preview is a read-only
+   * projection with no cursor, so there is nothing there to select or land on.
+   * Jumping there from a search result would show the right page and no
+   * indication of what matched.
+   */
+  scrollToLine(line, match) {
+    if (match && mode !== "source") setMode("source");
+
+    const text = view.state.doc.toString();
+    const lineStart = offsetOfLine(text, line);
+    let from = lineStart;
+    let to = lineStart;
+
+    if (match) {
+      // Find the match within the line, so the selection lands on the words
+      // rather than on the start of the line.
+      const lineText = text.slice(lineStart, text.indexOf("\n", lineStart) + 1 || undefined);
+      const at = lineText.toLowerCase().indexOf(match.toLowerCase());
+      if (at >= 0) {
+        from = lineStart + at;
+        to = from + match.length;
+      }
+    }
+
     view.dispatch({
-      selection: { anchor: offset },
-      effects: EditorView.scrollIntoView(offset, { y: "start", yMargin: 24 }),
+      selection: { anchor: from, head: to },
+      effects: EditorView.scrollIntoView(from, { y: "center" }),
     });
     if (mode === "source") view.focus();
   },

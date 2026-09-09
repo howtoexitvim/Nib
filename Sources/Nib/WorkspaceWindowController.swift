@@ -88,18 +88,20 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         toolbar.showsBaselineSeparator = false
         toolbar.allowsUserCustomization = false
         toolbar.displayMode = .iconOnly
+        toolbar.delegate = self
+        toolbar.centeredItemIdentifier = .documentTitle
         window.toolbar = toolbar
         window.toolbarStyle = .unifiedCompact
-        // AppKit lays the window title out inside the sidebar's titlebar
-        // column, so the filename ends up squeezed over the file tree. Typora
-        // centres it over the whole window; the only way to get that is to
-        // stop AppKit drawing the title and put it in a centred toolbar item
-        // instead.
-        // AppKit draws the title. An earlier version hid it and drew a custom
-        // centred toolbar item instead, to get Typora's full-width centring --
-        // but .unifiedCompact kept drawing the window title too, so the band
-        // carried two stacked copies and grew to fit both.
-        window.titleVisibility = .visible
+        // Hidden, and drawn as a centred toolbar item instead. AppKit centres
+        // its own title within the area *right of the sidebar*, which puts it
+        // visibly off-centre in the window.
+        //
+        // An earlier attempt at this produced two stacked titles and a taller
+        // band, because the window title was left visible and .unifiedCompact
+        // drew it as well. Hiding it is what makes the custom item the only
+        // title; window.title is still set, for the Window menu and Mission
+        // Control.
+        window.titleVisibility = .hidden
 
         // Menu items send to nil so they travel the responder chain, and this
         // controller supplies the actions for them. No splicing is needed or
@@ -154,11 +156,12 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         sidebarContainer.search.rootURL = { [weak self] in self?.workspace?.rootURL }
         sidebarContainer.search.onSelect = { [weak self] hit in
             guard let self else { return }
+            let query = self.sidebarContainer.search.currentQuery
             if hit.url.standardizedFileURL == self.currentFileURL {
-                self.editor.scrollToLine(hit.line - 1)
+                self.editor.scrollToLine(hit.line - 1, selecting: query)
             } else {
                 // The file has to be loaded before there is a line to go to.
-                self.selectFile(hit.url, thenScrollTo: hit.line - 1)
+                self.selectFile(hit.url, thenScrollTo: hit.line - 1, selecting: query)
             }
         }
         editor.documentURL = { [weak self] in self?.currentFileURL }
@@ -209,6 +212,17 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
 
     private var sidebarItem: NSSplitViewItem { splitViewController.splitViewItems[0] }
 
+    /// "doc.md — Saved", centred over the whole window rather than over the
+    /// editor pane. One line: a stacked title and subtitle needs a taller
+    /// titlebar and wastes the width that is already there.
+    private let titleLabel: NSTextField = {
+        let field = NSTextField(labelWithString: "")
+        field.alignment = .center
+        field.lineBreakMode = .byTruncatingMiddle
+        field.cell?.usesSingleLineMode = true
+        return field
+    }()
+
     // MARK: - Opening
 
     /// Opens a folder as the workspace, replacing whatever was open.
@@ -227,15 +241,15 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     /// The current file is saved first, and a failed save cancels the switch --
     /// otherwise a write error would silently discard the edits as the buffer
     /// is replaced.
-    func selectFile(_ url: URL, thenScrollTo line: Int? = nil) {
+    func selectFile(_ url: URL, thenScrollTo line: Int? = nil, selecting match: String? = nil) {
         guard url.standardizedFileURL != currentFileURL else {
-            if let line { editor.scrollToLine(line) }
+            if let line { editor.scrollToLine(line, selecting: match) }
             return
         }
         Task { @MainActor in
             guard await saveCurrentIfNeeded() else { return }
             load(url)
-            if let line { editor.scrollToLine(line) }
+            if let line { editor.scrollToLine(line, selecting: match) }
         }
     }
 
@@ -746,14 +760,35 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         let name = currentFileURL?.lastPathComponent
             ?? workspace?.rootURL.lastPathComponent
             ?? "Nib"
-        // One line, not title + subtitle: a subtitle is drawn on its own row
-        // below the title, which both wastes the width available and makes the
-        // titlebar taller. "doc.md — Saved" fits on one line at any sane
-        // window size.
-        let state = currentFileURL == nil ? "" : (editor.isDirty ? "  —  Edited" : "  —  Saved")
-        window?.title = name + state
+        // window.title is hidden but still set: it names the window in the
+        // Window menu and in Mission Control.
+        window?.title = name
         window?.subtitle = ""
+        titleLabel.attributedStringValue = Self.titleString(
+            name: name,
+            state: currentFileURL == nil ? nil : (editor.isDirty ? "Edited" : "Saved")
+        )
         window?.representedURL = currentFileURL
+    }
+
+    /// "name — state", with the state greyed back so the filename leads.
+    private static func titleString(name: String, state: String?) -> NSAttributedString {
+        let title = NSMutableAttributedString(
+            string: name,
+            attributes: [
+                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .semibold),
+                .foregroundColor: NSColor.labelColor,
+            ]
+        )
+        guard let state else { return title }
+        title.append(NSAttributedString(
+            string: "  —  \(state)",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
+                .foregroundColor: NSColor.tertiaryLabelColor,
+            ]
+        ))
+        return title
     }
 
     private func presentError(_ error: Error, title: String) {
@@ -819,5 +854,36 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
             controller.selectFile(url)
         }
         present()
+    }
+}
+
+extension NSToolbarItem.Identifier {
+    static let documentTitle = NSToolbarItem.Identifier("NibDocumentTitle")
+}
+
+/// Supplies the centred title item.
+///
+/// The toolbar carries nothing else; it exists so AppKit reserves the titlebar
+/// band, and so the title can be centred over the whole window instead of over
+/// the editor pane.
+extension WorkspaceWindowController: NSToolbarDelegate {
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.documentTitle, .flexibleSpace]
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.flexibleSpace, .documentTitle, .flexibleSpace]
+    }
+
+    func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier identifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        guard identifier == .documentTitle else { return nil }
+        let item = NSToolbarItem(itemIdentifier: identifier)
+        item.view = titleLabel
+        item.visibilityPriority = .high
+        return item
     }
 }
