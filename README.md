@@ -13,7 +13,7 @@ make clean
 
 不需要 Xcode 工程：`swift build` 出二进制，Makefile 手工组装 .app,全程命令行可复现。
 
-产物约 **1.3MB**（Typora 46MB，Electron 应用通常 150-250MB）。
+产物约 **1.4MB**（Typora 46MB，Electron 应用通常 150-250MB）。
 
 ## 结构
 
@@ -131,8 +131,8 @@ ssh h800 "tr '\0' '\n' < /proc/\$(pgrep -f 'vllm serve' | head -1)/environ | gre
 ## 测试
 
 ```
-swift test           66 个
-cd web && npm test   53 个
+swift test           81 个
+cd web && npm test   75 个
 ```
 
 Swift 侧：响应清洗、endpoint 拼装、文件可见性与排序、`.assets` 路径推导、重命名/新建的命名校验、图片类型嗅探与命名冲突、`nib-asset://` 的路径穿越拒绝、外观设置往返、跨文件搜索。
