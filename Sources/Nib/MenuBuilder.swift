@@ -142,15 +142,9 @@ enum MenuBuilder {
 
         // Cmd+F is Find, as it is everywhere else. Full Screen gives up the
         // chord and takes the standard Ctrl+Cmd+F instead.
+        // One item: the panel it opens carries its own replace toggle, so a
+        // separate "Find and Replace" opened the identical panel.
         menu.addItem(withTitle: "Find", action: #selector(WorkspaceWindowController.performFind(_:)), keyEquivalent: "f")
-
-        let replace = NSMenuItem(
-            title: "Find and Replace",
-            action: #selector(WorkspaceWindowController.performReplace(_:)),
-            keyEquivalent: "f"
-        )
-        replace.keyEquivalentModifierMask = [.command, .option]
-        menu.addItem(replace)
 
         let findInFolder = NSMenuItem(
             title: "Find in Folder…",

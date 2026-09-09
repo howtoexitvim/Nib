@@ -636,7 +636,6 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     // which is also what keeps ghost writing sound.
 
     @objc func performFind(_ sender: Any?) { editor.send("find") }
-    @objc func performReplace(_ sender: Any?) { editor.send("replace") }
     @objc func formatBold(_ sender: Any?) { editor.send("bold") }
     @objc func formatItalic(_ sender: Any?) { editor.send("italic") }
     @objc func formatCode(_ sender: Any?) { editor.send("code") }
@@ -718,7 +717,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
             // Formatting writes at the cursor, and the preview has none.
             return isSourceMode && currentFileURL != nil
 
-        case #selector(performFind(_:)), #selector(performReplace(_:)):
+        case #selector(performFind(_:)):
             // Find is not an edit -- it locates text -- so being in the
             // preview is no reason to refuse it. It switches to source and
             // opens the panel there, which is what clicking a folder-search

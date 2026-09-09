@@ -171,7 +171,7 @@ installHostAPI({
     // it switches to source and opens the panel there. Everything else needs a
     // cursor, which the preview does not have.
     if (mode !== "source") {
-      if (name !== "find" && name !== "replace") return;
+      if (name !== "find") return;
       setMode("source");
     }
     const run = commands[name];

@@ -13,9 +13,10 @@ import { formatCommands } from "./format.js";
 
 /** name -> (view, argument) => void */
 export const commands = {
+  // CodeMirror's panel carries its own replace toggle, so there is one
+  // command, not a separate "find" and "find and replace" that opened the
+  // very same panel.
   find: (view) => openSearchPanel(view),
-  // One panel serves both; it opens with the replace row already showing.
-  replace: (view) => openSearchPanel(view),
   ...formatCommands,
 };
 
