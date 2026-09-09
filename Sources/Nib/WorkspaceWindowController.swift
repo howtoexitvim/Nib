@@ -712,12 +712,18 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         case #selector(revealInFinder(_:)), #selector(revealClicked(_:)):
             return currentFileURL != nil || workspace != nil
 
-        case #selector(performFind(_:)), #selector(performReplace(_:)),
-             #selector(formatBold(_:)), #selector(formatItalic(_:)),
+        case #selector(formatBold(_:)), #selector(formatItalic(_:)),
              #selector(formatCode(_:)), #selector(formatLink(_:)),
              #selector(formatHeading(_:)):
-            // The preview has no cursor to act on.
+            // Formatting writes at the cursor, and the preview has none.
             return isSourceMode && currentFileURL != nil
+
+        case #selector(performFind(_:)), #selector(performReplace(_:)):
+            // Find is not an edit -- it locates text -- so being in the
+            // preview is no reason to refuse it. It switches to source and
+            // opens the panel there, which is what clicking a folder-search
+            // result already does.
+            return currentFileURL != nil
 
         case #selector(toggleRenderMode(_:)):
             menuItem.title = isSourceMode ? "Show Preview" : "Show Source"

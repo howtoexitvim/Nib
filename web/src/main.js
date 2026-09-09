@@ -167,7 +167,13 @@ installHostAPI({
    * a cursor are refused in preview, which has none.
    */
   command(name, argument) {
-    if (mode !== "source") return;
+    // Find works from either mode: it locates text rather than editing it, so
+    // it switches to source and opens the panel there. Everything else needs a
+    // cursor, which the preview does not have.
+    if (mode !== "source") {
+      if (name !== "find" && name !== "replace") return;
+      setMode("source");
+    }
     const run = commands[name];
     if (!run) {
       console.warn("[nib] unknown command: " + name);
