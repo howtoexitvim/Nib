@@ -94,6 +94,16 @@ struct CompletionService {
                     ["role": "system", "content": Self.systemPrompt],
                     ["role": "user", "content": userPrompt],
                 ],
+                // Reasoning models served by vLLM put their chain of thought in
+                // a separate `reasoning` field and leave `content` null, so a
+                // short completion budget is spent entirely on thinking and
+                // ghost text gets nothing back. Verified against a local
+                // Qwen3.8-27B: without this the reply is null; with it the
+                // completion arrives directly.
+                //
+                // OpenAI itself ignores unknown top-level fields, so this is
+                // inert against the hosted API.
+                "chat_template_kwargs": ["enable_thinking": false],
             ]
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

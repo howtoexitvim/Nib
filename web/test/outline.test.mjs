@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { offsetOfLine, parseOutline } from "../src/outline.js";
+import { activeHeading, offsetOfLine, parseOutline } from "../src/outline.js";
 
 test("reads headings with their levels", () => {
   const outline = parseOutline("# One\n\n## Two\n\n### Three");
@@ -51,4 +51,22 @@ test("finds the character offset of a line", () => {
 
 test("an empty document has no outline", () => {
   assert.deepEqual(parseOutline(""), []);
+});
+
+test("finds the heading the cursor is inside", () => {
+  const outline = parseOutline("# One\nbody\n## Two\nbody\n### Three");
+  // Lines are zero-based, matching parseOutline's output.
+  assert.equal(activeHeading(outline, 0), 0); // on "# One"
+  assert.equal(activeHeading(outline, 1), 0); // in its body
+  assert.equal(activeHeading(outline, 2), 1); // on "## Two"
+  assert.equal(activeHeading(outline, 4), 2); // on "### Three"
+});
+
+test("returns -1 above the first heading", () => {
+  const outline = parseOutline("intro text\n\n# One");
+  assert.equal(activeHeading(outline, 0), -1);
+});
+
+test("a document with no headings has nothing active", () => {
+  assert.equal(activeHeading([], 5), -1);
 });

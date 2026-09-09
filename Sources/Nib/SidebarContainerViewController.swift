@@ -15,6 +15,9 @@ final class SidebarContainerViewController: NSViewController {
 
     private let picker = NSSegmentedControl()
     private let container = NSView()
+    /// The workspace's name, above the tabs -- Typora's "FILES" header, but
+    /// carrying the folder name, which is more use than a fixed word.
+    private let header = NSTextField(labelWithString: "")
 
     private(set) var tab: Tab = .files
 
@@ -32,14 +35,24 @@ final class SidebarContainerViewController: NSViewController {
 
         container.translatesAutoresizingMaskIntoConstraints = false
 
+        header.font = .systemFont(ofSize: 10, weight: .semibold)
+        header.textColor = .tertiaryLabelColor
+        header.lineBreakMode = .byTruncatingTail
+        header.translatesAutoresizingMaskIntoConstraints = false
+
         let root = NSView()
+        root.addSubview(header)
         root.addSubview(picker)
         root.addSubview(container)
 
         NSLayoutConstraint.activate([
             // Plain padding: the window's content now starts below the
             // titlebar, so there are no traffic lights to clear.
-            picker.topAnchor.constraint(equalTo: root.topAnchor, constant: 8),
+            header.topAnchor.constraint(equalTo: root.topAnchor, constant: 8),
+            header.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
+            header.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -10),
+
+            picker.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 6),
             picker.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 10),
             picker.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -10),
 
@@ -81,6 +94,11 @@ final class SidebarContainerViewController: NSViewController {
             wanted.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             wanted.trailingAnchor.constraint(equalTo: container.trailingAnchor),
         ])
+    }
+
+    /// Names the open folder above the tabs.
+    func setWorkspaceName(_ name: String?) {
+        header.stringValue = (name ?? "FILES").uppercased()
     }
 
     /// Flips between files and the outline, for the View menu's Outline item.

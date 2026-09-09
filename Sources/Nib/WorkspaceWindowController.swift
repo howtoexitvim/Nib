@@ -119,8 +119,8 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         sidebarContainer.outline.onSelect = { [weak self] heading in
             self?.editor.scrollToLine(heading.line)
         }
-        editor.onOutlineChange = { [weak self] headings in
-            self?.sidebarContainer.outline.show(headings)
+        editor.onOutlineChange = { [weak self] headings, active in
+            self?.sidebarContainer.outline.show(headings, active: active)
         }
         editor.onOpenFile = { [weak self] url in
             guard let self else { return }
@@ -200,6 +200,7 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         let workspace = Workspace(rootURL: url)
         self.workspace = workspace
         sidebar.show(workspace)
+        sidebarContainer.setWorkspaceName(url.lastPathComponent)
         WorkspaceStore.saveFolder(url)
         NSDocumentController.shared.noteNewRecentDocumentURL(url)
         updateTitle()

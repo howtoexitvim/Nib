@@ -82,8 +82,8 @@ export function notifyMode(mode) {
 }
 
 /** Tells the host the document's heading structure, for the outline pane. */
-export function notifyOutline(headings) {
-  post("document", { event: "outline", headings });
+export function notifyOutline(headings, active = -1) {
+  post("document", { event: "outline", headings, active });
 }
 
 /** Surface for Swift to call into. Kept to a minimum and documented here. */

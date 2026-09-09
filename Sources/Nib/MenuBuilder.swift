@@ -64,6 +64,14 @@ enum MenuBuilder {
         )
         openFolder.keyEquivalentModifierMask = [.command, .shift]
         menu.addItem(openFolder)
+
+        // NSDocumentController fills and persists this itself; every open and
+        // save already calls noteNewRecentDocumentURL.
+        let recent = NSMenuItem(title: "Open Recent", action: nil, keyEquivalent: "")
+        let recentMenu = NSMenu(title: "Open Recent")
+        recentMenu.identifier = NSUserInterfaceItemIdentifier("NSRecentDocumentsMenu")
+        recent.submenu = recentMenu
+        menu.addItem(recent)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Save", action: #selector(WorkspaceWindowController.saveDocument(_:)), keyEquivalent: "s")
 

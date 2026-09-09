@@ -47,3 +47,18 @@ export function offsetOfLine(text, line) {
   }
   return offset;
 }
+
+/**
+ * Which heading the cursor is inside: the last one at or before the line.
+ *
+ * Returns an index into `parseOutline`'s result, or -1 when the cursor sits
+ * above the first heading.
+ */
+export function activeHeading(headings, line) {
+  let active = -1;
+  for (let i = 0; i < headings.length; i += 1) {
+    if (headings[i].line <= line) active = i;
+    else break;
+  }
+  return active;
+}

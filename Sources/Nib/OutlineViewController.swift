@@ -63,13 +63,32 @@ final class OutlineViewController: NSViewController {
         view = container
     }
 
-    func show(_ headings: [Heading]) {
+    /// Shows the headings and highlights the one the cursor is inside.
+    func show(_ headings: [Heading], active: Int = -1) {
+        let changed = headings != self.headings
         self.headings = headings
         emptyLabel.isHidden = !headings.isEmpty
-        tableView.reloadData()
+        // Only reload when the structure actually changed: reloading on every
+        // cursor move would fight the selection being set right after.
+        if changed { tableView.reloadData() }
+
+        guard headings.indices.contains(active) else {
+            tableView.deselectAll(nil)
+            return
+        }
+        // Selecting programmatically must not fire the click action, which
+        // would scroll the editor back to the heading on every keystroke.
+        isSyncing = true
+        tableView.selectRowIndexes([active], byExtendingSelection: false)
+        tableView.scrollRowToVisible(active)
+        isSyncing = false
     }
 
+    /// True while the selection is being set from the editor's cursor.
+    private var isSyncing = false
+
     @objc private func rowClicked() {
+        guard !isSyncing else { return }
         let row = tableView.clickedRow
         guard headings.indices.contains(row) else { return }
         onSelect?(headings[row])

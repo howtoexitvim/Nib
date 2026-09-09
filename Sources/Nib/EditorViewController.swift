@@ -30,7 +30,7 @@ final class EditorViewController: NSViewController {
     private(set) var mode: String = "source"
     var onModeChange: ((String) -> Void)?
     /// The document's headings changed, for the outline pane.
-    var onOutlineChange: (([Heading]) -> Void)?
+    var onOutlineChange: (([Heading], Int) -> Void)?
 
     override func loadView() {
         let config = WKWebViewConfiguration()
@@ -243,13 +243,14 @@ final class EditorViewController: NSViewController {
             }
         case "outline":
             let raw = body["headings"] as? [[String: Any]] ?? []
-            onOutlineChange?(raw.compactMap { entry in
+            let headings = raw.compactMap { entry -> Heading? in
                 guard let level = entry["level"] as? Int,
                       let text = entry["text"] as? String,
                       let line = entry["line"] as? Int
                 else { return nil }
                 return Heading(level: level, text: text, line: line)
-            })
+            }
+            onOutlineChange?(headings, body["active"] as? Int ?? -1)
         case "pasteImage":
             if let id = body["id"] as? Int, let data = body["data"] as? String {
                 handlePastedImage(id: id, base64: data)

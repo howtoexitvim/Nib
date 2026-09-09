@@ -77,6 +77,45 @@ web/src/
 
 **API key 存 Keychain，网络请求在 Swift 侧发出**，key 不进 JS 上下文。
 
+## 用本地 Qwen 测 ghost writing
+
+H800 上跑着 vLLM，实测可用。**服务只监听 127.0.0.1，所以需要 SSH 隧道。**
+
+```bash
+# 1. 开隧道，保持这个终端不关
+ssh -N -L 8100:127.0.0.1:8100 h800
+
+# 2. 拿 key（它在 vllm 进程的环境变量里，不在任何配置文件里）
+ssh h800 "tr '\0' '\n' < /proc/\$(pgrep -f 'vllm serve' | head -1)/environ | grep '^VLLM_API_KEY=' | cut -d= -f2"
+```
+
+然后在 Nib 的 Settings 里填：
+
+| 字段 | 值 |
+|---|---|
+| Provider | **OpenAI**（vLLM 说的是 OpenAI 协议） |
+| Base URL | `http://127.0.0.1:8100/v1` |
+| Model | `qwen3.8-27b` |
+| API key | 上面那条命令输出的字符串 |
+
+**key 不能留空。** 这个部署开了鉴权，空 key 会返回 `{"error":"Unauthorized"}`。
+
+实测输出（就是 Nib 真正会发的那个 prompt）：
+
+```
+英文散文   7.8s  →  "you write in plain Markdown and see the rendered
+                     result instantly, with no distractions or complex UI."
+中文散文   0.3s  →  "阳光透过玻璃窗洒在桌面上，看着街上来来往往的人，心里觉得格外平静。"
+列表项     0.2s  →  "- 检查并修复标题栏的样式问题"
+句子中间   0.1s  →  "source of truth"
+```
+
+中文续中文、列表里出列表项、句子中间接句子中间——都对。首次请求 7.8s 是冷启动，之后 0.1-0.3s，远小于 500ms 防抖。
+
+**一个必须的请求参数：** 这个模型带 `--reasoning-parser qwen3`，vLLM 会把思考链放进 `reasoning` 字段并让 `content` 是 `null`——短补全的 token 预算会全花在思考上，ghost text 什么也拿不到。所以请求体里带了 `chat_template_kwargs: {"enable_thinking": false}`。OpenAI 官方 API 会忽略不认识的顶层字段，所以这个参数对它无害。
+
+服务端信息（2026-09-09 实机核验）：`Qwen3.8-27B`，2×H800 tensor-parallel，`max-model-len` 262144，vLLM 0.27.1。
+
 ## 协议支持
 
 只支持两种官方协议：**Anthropic** 和 **OpenAI**。后者是 vLLM、Ollama、LM Studio 等自托管服务暴露的接口，所以本地模型不需要额外代码 —— 在设置里把 base URL 指过去、key 留空即可。

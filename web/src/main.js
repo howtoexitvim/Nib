@@ -12,7 +12,7 @@ import { EditorView } from "@codemirror/view";
 import { makeState } from "./state.js";
 import { renderMarkdown } from "./preview.js";
 import { documentStats } from "./wordcount.js";
-import { offsetOfLine, parseOutline } from "./outline.js";
+import { activeHeading, offsetOfLine, parseOutline } from "./outline.js";
 import { notifyOutline } from "./bridge.js";
 import { installHostAPI, notifyDirty, notifyMode } from "./bridge.js";
 import { commands } from "./commands.js";
@@ -35,10 +35,27 @@ const positions = new Map();
 
 /** Fires on every edit so the host can track the dirty state. */
 const dirtyListener = EditorView.updateListener.of((update) => {
-  if (!update.docChanged) return;
-  notifyDirty(update.state.doc.toString() !== savedDoc);
-  scheduleStats();
+  if (update.docChanged) {
+    notifyDirty(update.state.doc.toString() !== savedDoc);
+    scheduleStats();
+  } else if (update.selectionSet) {
+    // Moving the cursor moves the outline highlight, but nothing else needs
+    // recomputing -- counting words on every arrow key would be wasteful.
+    scheduleActive();
+  }
 });
+
+/** Pushes just the active-heading index, on cursor movement. */
+let activeTimer = 0;
+function scheduleActive() {
+  clearTimeout(activeTimer);
+  activeTimer = setTimeout(() => {
+    const headings = parseOutline(view.state.doc.toString());
+    notifyOutline(headings, activeHeading(headings, view.state.doc.lineAt(
+      Math.min(view.state.selection.main.head, view.state.doc.length)
+    ).number - 1));
+  }, 150);
+}
 
 /**
  * Counting scans the whole document, so it runs after typing stops rather
@@ -56,7 +73,10 @@ function updateStats() {
   statsEl.textContent = `${words.toLocaleString()} words · ${characters.toLocaleString()} characters`;
   // The sidebar's outline is native, so the structure is pushed to Swift
   // rather than rendered here.
-  notifyOutline(parseOutline(text));
+  const headings = parseOutline(text);
+  notifyOutline(headings, activeHeading(headings, view.state.doc.lineAt(
+    Math.min(view.state.selection.main.head, view.state.doc.length)
+  ).number - 1));
 }
 
 const view = new EditorView({
