@@ -16,6 +16,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = MenuBuilder.build()
+        // AppKit injects toolbar and tab-bar items into the View menu. Neither
+        // belongs here -- see removeInjectedItems. They are added lazily, so
+        // this runs again once the run loop has settled.
+        MenuBuilder.removeInjectedItems(from: NSApp.mainMenu)
+        Task { @MainActor in
+            MenuBuilder.removeInjectedItems(from: NSApp.mainMenu)
+        }
 
         // Paths on the command line, so `Nib notes/` works from a shell.
         // application(_:open:) only covers Finder and `open`, not argv.

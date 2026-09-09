@@ -18,6 +18,37 @@ enum MenuBuilder {
         return main
     }
 
+    /// Strips the items AppKit injects into the View menu.
+    ///
+    /// Two families, both unwanted:
+    ///
+    /// - Toolbar items, added for any window that has a toolbar. Nib's toolbar
+    ///   carries no items -- it exists only so the titlebar band is reserved --
+    ///   so "Show Toolbar" adds a blank second row and makes the titlebar
+    ///   taller for nothing.
+    /// - Tab-bar items, added for any window with tabbing enabled. Nib
+    ///   deliberately has no tabs: the sidebar is already the navigation
+    ///   surface, and a second one would compete with it.
+    static func removeInjectedItems(from menu: NSMenu?) {
+        guard let view = menu?.items.first(where: { $0.title == "View" })?.submenu else { return }
+        let unwanted = [
+            "toggleToolbarShown", "runToolbarCustomization",
+            "toggleTabBar", "toggleTabOverview",
+        ]
+        view.items
+            .filter { item in
+                guard let action = item.action else { return false }
+                let name = NSStringFromSelector(action)
+                return unwanted.contains { name.hasPrefix($0) }
+            }
+            .forEach(view.removeItem)
+
+        // Trailing separators left behind by the removals.
+        while let last = view.items.first, last.isSeparatorItem {
+            view.removeItem(last)
+        }
+    }
+
     private static func submenu(_ title: String) -> (NSMenuItem, NSMenu) {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         let menu = NSMenu(title: title)

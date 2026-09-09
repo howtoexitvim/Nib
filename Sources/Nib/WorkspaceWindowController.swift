@@ -57,6 +57,11 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         window.backgroundColor = .textBackgroundColor
         window.isMovableByWindowBackground = true
         window.minSize = NSSize(width: 640, height: 400)
+        // No native window tabs. The sidebar is already the navigation
+        // surface; a tab bar would be a second one competing with it, and
+        // Typora has none either. This also keeps AppKit from adding
+        // "Show Tab Bar" to the View menu.
+        window.tabbingMode = .disallowed
 
         super.init(window: window)
 
@@ -68,16 +73,18 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         window.center()
         window.setFrameAutosaveName("NibMainWindow")
 
-        // A toolbar with nothing but the document title, which is what makes
-        // AppKit reserve a titlebar band across the whole window and put the
-        // traffic lights inside it.
+        // An empty toolbar, purely so AppKit reserves a titlebar band across
+        // the whole window with the traffic lights inside it.
         //
-        // .unifiedCompact rather than .unified: the tall style leaves a 52pt
-        // band, where Typora's is around 38. The reason .unified was needed
-        // before -- it constrained AppKit's own title to the sidebar column --
-        // no longer applies, since the title is drawn as an item here.
+        // It holds no items, so View > Show Toolbar would add a second, blank
+        // row under the title and make the titlebar taller for nothing --
+        // hence allowsUserCustomization stays off and the item is removed from
+        // the View menu entirely. .unifiedCompact keeps the band at 38pt,
+        // matching Typora; .unified leaves 52.
         let toolbar = NSToolbar(identifier: "NibMainToolbar")
         toolbar.showsBaselineSeparator = false
+        toolbar.allowsUserCustomization = false
+        toolbar.displayMode = .iconOnly
         window.toolbar = toolbar
         window.toolbarStyle = .unifiedCompact
         // AppKit lays the window title out inside the sidebar's titlebar
@@ -594,6 +601,18 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     /// Without this every item is always enabled, so Save on an empty window
     /// and Bold in the preview both look available and then do nothing.
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        // AppKit injects "Show Toolbar" and "Customize Toolbar…" into the View
+        // menu whenever a window has a toolbar. Nib's toolbar holds no items
+        // and exists only to reserve the titlebar band, so showing it adds a
+        // blank second row and nothing else. Disabling is not enough -- the
+        // items are removed in makeViewMenuClean() -- but this guards the
+        // selectors in case AppKit re-adds them.
+        if let action = menuItem.action,
+           NSStringFromSelector(action).hasPrefix("toggleToolbarShown")
+            || NSStringFromSelector(action).hasPrefix("runToolbarCustomization") {
+            return false
+        }
+
         let isSourceMode = editor.mode == "source"
 
         switch menuItem.action {
@@ -658,14 +677,13 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         let name = currentFileURL?.lastPathComponent
             ?? workspace?.rootURL.lastPathComponent
             ?? "Nib"
-        window?.title = name
-        // AppKit centres the subtitle under the title in .unifiedCompact and
-        // greys it back, which is exactly the "— Edited / — Saved" treatment
-        // Typora gives it. With no save prompt anywhere, that state is the
-        // useful half of the title.
-        window?.subtitle = currentFileURL == nil
-            ? ""
-            : (editor.isDirty ? "Edited" : "Saved")
+        // One line, not title + subtitle: a subtitle is drawn on its own row
+        // below the title, which both wastes the width available and makes the
+        // titlebar taller. "doc.md — Saved" fits on one line at any sane
+        // window size.
+        let state = currentFileURL == nil ? "" : (editor.isDirty ? "  —  Edited" : "  —  Saved")
+        window?.title = name + state
+        window?.subtitle = ""
         window?.representedURL = currentFileURL
     }
 
