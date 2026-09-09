@@ -32,7 +32,12 @@ final class SearchViewController: NSViewController {
 
         tableView.headerView = nil
         tableView.rowSizeStyle = .default
-        tableView.style = .inset
+        // .sourceList, matching the file tree. .inset draws its own opaque
+        // background, so this pane became a solid rectangle sitting inside the
+        // sidebar's vibrant material -- the tabs above stayed translucent while
+        // the list below went flat, in both themes.
+        tableView.style = .sourceList
+        tableView.backgroundColor = .clear
         tableView.dataSource = self
         tableView.delegate = self
         tableView.target = self

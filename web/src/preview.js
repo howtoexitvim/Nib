@@ -31,7 +31,24 @@ export function resolveImageSrc(src) {
   // An absolute filesystem path is still a local file; hand it over as-is and
   // let Swift decide, rather than joining it onto the document folder.
   if (src.startsWith("/")) return `nib-asset://asset${src}`;
-  return ASSET_SCHEME + src.split("/").map(encodeURIComponent).join("/");
+  // Encode only what is not already encoded. A Markdown link written by Nib is
+  // already percent-encoded (ImageStore does it, because a space or a paren
+  // ends a link early), so encoding again turned %20 into %2520 and the file
+  // was never found -- which is why an image whose name had a space or CJK
+  // showed as broken while a plain ASCII one worked.
+  return ASSET_SCHEME + src.split("/").map(encodeSegment).join("/");
+}
+
+/**
+ * Percent-encodes a path segment without double-encoding existing escapes.
+ *
+ * decodeURIComponent first would corrupt a literal "%" in a filename, so this
+ * instead leaves valid %XX triplets alone and encodes everything else.
+ */
+function encodeSegment(segment) {
+  return segment.replace(/%[0-9A-Fa-f]{2}|[^A-Za-z0-9\-._~!$&'()*+,;=:@]/g, (match) =>
+    match.length === 3 && match[0] === "%" ? match : encodeURIComponent(match),
+  );
 }
 
 const renderer = new marked.Renderer();

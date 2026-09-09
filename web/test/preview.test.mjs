@@ -49,3 +49,40 @@ test("handles an empty src without producing a bare scheme", () => {
   assert.equal(resolveImageSrc(""), "");
   assert.equal(resolveImageSrc(undefined), "");
 });
+
+test("does not double-encode a link Nib itself wrote", () => {
+  // ImageStore percent-encodes when it writes the markdown, because a space or
+  // a paren ends a link early. Encoding again turned %20 into %2520 and the
+  // image was never found -- every pasted image whose document name had a
+  // space or CJK in it rendered broken.
+  const written = "1.%20%E4%B8%A4%E8%A1%8C.assets/image-1.png";
+  assert.equal(
+    resolveImageSrc(written),
+    "nib-asset://asset/1.%20%E4%B8%A4%E8%A1%8C.assets/image-1.png"
+  );
+});
+
+test("still encodes a path typed by hand", () => {
+  assert.equal(
+    resolveImageSrc("my notes.assets/a b.png"),
+    "nib-asset://asset/my%20notes.assets/a%20b.png"
+  );
+  assert.equal(
+    resolveImageSrc("笔记.assets/图片.png"),
+    "nib-asset://asset/%E7%AC%94%E8%AE%B0.assets/%E5%9B%BE%E7%89%87.png"
+  );
+});
+
+test("leaves a literal percent in a filename alone", () => {
+  // "100%25" is an encoded "100%"; decoding first and re-encoding would be
+  // lossy for a filename that genuinely contains a percent sign.
+  assert.equal(
+    resolveImageSrc("100%25.assets/x.png"),
+    "nib-asset://asset/100%25.assets/x.png"
+  );
+});
+
+test("resolving twice is still stable", () => {
+  const once = resolveImageSrc("my notes.assets/a b.png");
+  assert.equal(resolveImageSrc(once), once);
+});
