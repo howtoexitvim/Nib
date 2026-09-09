@@ -78,3 +78,60 @@ struct AppearanceTests {
         #expect(Appearance.Theme.light.nsAppearance?.name == .aqua)
     }
 }
+
+@Suite("Autosave preference")
+struct AutosaveSettingTests {
+    private func makeDefaults() -> UserDefaults {
+        let suite = "nib-tests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
+    }
+
+    @Test("defaults to two seconds")
+    func defaultDelay() {
+        #expect(Appearance().idleSaveSeconds == 2)
+    }
+
+    @Test("zero is a real choice, not an unset value")
+    func zeroMeansOff() {
+        // Every other numeric setting treats 0 as "never set". This one does
+        // not: 0 means "do not save while I am typing".
+        let defaults = makeDefaults()
+        defaults.set(0, forKey: "autosaveIdleSeconds")
+        #expect(Appearance.load(from: defaults).idleSaveSeconds == 0)
+    }
+
+    @Test("a value that is not on offer is ignored")
+    func rejectsUnknownDelay() {
+        let defaults = makeDefaults()
+        defaults.set(37, forKey: "autosaveIdleSeconds")
+        #expect(Appearance.load(from: defaults).idleSaveSeconds == 2)
+    }
+
+    @Test("survives a round trip")
+    func roundTrip() {
+        let defaults = makeDefaults()
+        var saved = Appearance()
+        saved.idleSaveSeconds = 5
+        saved.save(to: defaults)
+        #expect(Appearance.load(from: defaults).idleSaveSeconds == 5)
+    }
+}
+
+@Suite("Ghost writing switch")
+struct GhostWritingToggleTests {
+    @Test("on by default")
+    func defaultsOn() {
+        // The memberwise default is what a new install gets.
+        let fresh = ProviderSettings(provider: .anthropic, baseURL: "", model: "")
+        #expect(fresh.ghostWritingEnabled)
+    }
+
+    @Test("off stays off")
+    func canBeTurnedOff() {
+        var settings = ProviderSettings(provider: .anthropic, baseURL: "", model: "")
+        settings.ghostWritingEnabled = false
+        #expect(!settings.ghostWritingEnabled)
+    }
+}

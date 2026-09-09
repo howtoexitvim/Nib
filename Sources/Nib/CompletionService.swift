@@ -53,6 +53,10 @@ struct CompletionService {
 
     func complete(prefix: String, suffix: String) async throws -> String {
         let settings = ProviderSettings.load()
+        // The switch in Settings, honoured at the one place every request
+        // passes through -- so turning it off stops the traffic rather than
+        // just hiding the fields.
+        guard settings.ghostWritingEnabled else { return "" }
         let apiKey = Keychain.readAPIKey() ?? ""
         if settings.provider.requiresKey && apiKey.isEmpty { throw Failure.missingKey }
         guard let endpoint = settings.endpoint else { throw Failure.badEndpoint(settings.baseURL) }

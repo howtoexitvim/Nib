@@ -44,6 +44,13 @@ struct ProviderSettings {
     var provider: Provider
     var baseURL: String
     var model: String
+    /// Whether ghost writing runs at all.
+    ///
+    /// There was previously no way to turn it off, which is untenable for the
+    /// one feature that reaches the network: offline, on a metered connection,
+    /// or simply when the suggestions are not wanted, the only escape was to
+    /// clear the API key and let every request fail.
+    var ghostWritingEnabled: Bool = true
 
     static func load() -> ProviderSettings {
         // UserDefaults.standard is fetched per call rather than cached in a
@@ -56,7 +63,9 @@ struct ProviderSettings {
         return ProviderSettings(
             provider: provider,
             baseURL: base.isEmpty ? provider.defaultBaseURL : base,
-            model: model.isEmpty ? provider.defaultModel : model
+            model: model.isEmpty ? provider.defaultModel : model,
+            // Absent means on: an existing install keeps working after upgrade.
+            ghostWritingEnabled: defaults.object(forKey: "ghostWritingEnabled") as? Bool ?? true
         )
     }
 
@@ -65,6 +74,7 @@ struct ProviderSettings {
         defaults.set(provider.rawValue, forKey: "provider")
         defaults.set(baseURL, forKey: "baseURL")
         defaults.set(model, forKey: "model")
+        defaults.set(ghostWritingEnabled, forKey: "ghostWritingEnabled")
     }
 
     /// Full endpoint for this provider, tolerating a base URL with or without a

@@ -73,9 +73,15 @@ struct Appearance: Equatable {
     /// Line length in rem. Prose is unreadable when a line runs the full width
     /// of a wide window, which is why this is a setting rather than 100%.
     var measure: Int = 46
+    /// Seconds of stillness before an autosave. 0 means "only on switch,
+    /// blur and quit" -- some people would rather not have the disk written
+    /// while they are still typing.
+    var idleSaveSeconds: Int = 2
 
     static let fontSizes = Array(stride(from: 12, through: 28, by: 1))
     static let measures = [32, 38, 46, 54, 64, 80]
+    /// The choices offered for autosave, in seconds; 0 is "off".
+    static let idleDelays = [0, 1, 2, 5]
 
     // MARK: - Persistence
 
@@ -84,6 +90,7 @@ struct Appearance: Equatable {
         static let family = "appearanceFontFamily"
         static let fontSize = "appearanceFontSize"
         static let measure = "appearanceMeasure"
+        static let idleSave = "autosaveIdleSeconds"
     }
 
     static func load(from defaults: UserDefaults = .standard) -> Appearance {
@@ -99,6 +106,12 @@ struct Appearance: Equatable {
         if size > 0 { appearance.fontSize = size }
         let measure = defaults.integer(forKey: Key.measure)
         if measure > 0 { appearance.measure = measure }
+        // 0 is a real choice here (autosave off while typing), so the
+        // "never set" case has to be told apart from a stored zero.
+        if let idle = defaults.object(forKey: Key.idleSave) as? Int,
+           idleDelays.contains(idle) {
+            appearance.idleSaveSeconds = idle
+        }
         return appearance
     }
 
@@ -107,6 +120,7 @@ struct Appearance: Equatable {
         defaults.set(family.rawValue, forKey: Key.family)
         defaults.set(fontSize, forKey: Key.fontSize)
         defaults.set(measure, forKey: Key.measure)
+        defaults.set(idleSaveSeconds, forKey: Key.idleSave)
     }
 
     /// What the web layer needs, as a JSON object.

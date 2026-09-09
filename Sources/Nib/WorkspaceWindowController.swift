@@ -28,7 +28,8 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     /// Debounces autosave while typing, so a write happens after a pause
     /// rather than on every keystroke.
     private var idleSaveTask: Task<Void, Never>?
-    private static let idleSaveDelay = Duration.seconds(2)
+    /// From Settings; 0 means no save while typing, only on leaving.
+    private var idleSaveDelay: Duration { .seconds(appearance.idleSaveSeconds) }
     /// The file being edited. Lives here, not on `Workspace`, so the workspace
     /// stays a model with no editor state in it.
     private(set) var currentFileURL: URL?
@@ -125,6 +126,12 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         // detached panel and the Settings window follow the OS until the user
         // happens to change the theme.
         applyAppearance()
+        // Settings applies appearance live, so it needs a way back to the
+        // window that owns the editor.
+        SettingsWindowController.onAppearanceChange = { [weak self] updated in
+            self?.appearance = updated
+            self?.applyAppearance()
+        }
         sidebarContainer.outline.onSelect = { [weak self] heading in
             self?.editor.scrollToLine(heading.line)
         }
@@ -375,8 +382,11 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
     /// lets it fire.
     private func scheduleIdleSave() {
         idleSaveTask?.cancel()
+        // 0 means the user asked for no autosave while typing; switching
+        // files, leaving the window and quitting still save.
+        guard appearance.idleSaveSeconds > 0 else { return }
         idleSaveTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: Self.idleSaveDelay)
+            try? await Task.sleep(for: self?.idleSaveDelay ?? .seconds(2))
             guard !Task.isCancelled, let self else { return }
             await self.saveCurrentIfNeeded()
         }
