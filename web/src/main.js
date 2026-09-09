@@ -16,7 +16,8 @@ import { activeHeading, offsetOfLine, parseOutline } from "./outline.js";
 import { notifyOutline } from "./bridge.js";
 import { installHostAPI, notifyDirty, notifyMode } from "./bridge.js";
 import { commands } from "./commands.js";
-import { applyAppearance } from "./theme.js";
+import { applyAppearance, setThemeListener } from "./theme.js";
+import { editorThemeFor, themeCompartment } from "./state.js";
 
 const root = document.getElementById("root");
 const previewEl = document.getElementById("preview");
@@ -189,6 +190,12 @@ installHostAPI({
   toggleMode,
   getMode: () => mode,
   focus: () => (mode === "source" ? view.focus() : previewEl.focus()),
+});
+
+// CodeMirror's baseTheme is chosen when the theme extension is built, so a
+// light/dark switch has to reconfigure it -- CSS variables cannot reach it.
+setThemeListener((dark) => {
+  view.dispatch({ effects: themeCompartment.reconfigure(editorThemeFor(dark)) });
 });
 
 setMode("source");

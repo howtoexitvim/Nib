@@ -35,28 +35,44 @@
    overridden to light, or when the user explicitly chose dark. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --nib-bg: #191919;
-    --nib-fg: #e8e8e6;
-    --nib-muted: #a8a8a4;
-    --nib-faint: #6a6a68;
-    --nib-accent: #7aa7dd;
-    --nib-selection: #35507088;
-    --nib-rule: #2e2e2e;
-    --nib-bg-raised: #202020;
-    --nib-hover: #ffffff0e;
+    /* Grounded in macOS's own dark palette rather than invented: the editor
+       is textBackgroundColor (#1E1E1E) exactly, so the WebView and the native
+       window frame paint the same colour instead of meeting at a seam.
+
+       The sidebar is an AppKit vibrant material Nib does not control, and it
+       resolves near windowBackgroundColor (#323232) -- so on macOS the chrome
+       is the LIGHTER plane and the document the darker one. (VS Code goes the
+       other way, sidebar #181818 under editor #1F1F1F, but it is not a native
+       app and does not have to sit next to Finder.) The old palette had the
+       editor at #191919 under a raised #202020: 1.08:1, which reads as mud.
+       macOS's own pairing is 1.30:1. */
+    --nib-bg: #1e1e1e;
+    --nib-fg: #e6e6e4;
+    --nib-muted: #a6a6a2;
+    --nib-faint: #6e6e6a;
+    --nib-accent: #7fb0e8;
+    --nib-selection: #3a5878aa;
+    --nib-rule: #343434;
+    /* Only the status bar and the find panel: the file tree's background comes
+       from AppKit's material, not from here. */
+    --nib-bg-raised: #252525;
+    --nib-hover: #ffffff12;
   }
 }
 
 :root[data-theme="dark"] {
-  --nib-bg: #191919;
-  --nib-fg: #e8e8e6;
-  --nib-muted: #a8a8a4;
-  --nib-faint: #6a6a68;
-  --nib-accent: #7aa7dd;
-  --nib-selection: #35507088;
-  --nib-rule: #2e2e2e;
-  --nib-bg-raised: #202020;
-  --nib-hover: #ffffff0e;
+  /* Must stay byte-identical to the media-query block above: a token defined
+     in only one of the two breaks one of the three theme states (system-dark,
+     explicit-dark, explicit-light). */
+  --nib-bg: #1e1e1e;
+  --nib-fg: #e6e6e4;
+  --nib-muted: #a6a6a2;
+  --nib-faint: #6e6e6a;
+  --nib-accent: #7fb0e8;
+  --nib-selection: #3a5878aa;
+  --nib-rule: #343434;
+  --nib-bg-raised: #252525;
+  --nib-hover: #ffffff12;
 }
 
 * {
@@ -219,8 +235,12 @@ body {
 
 /* ---- find panel ---- */
 
-/* CodeMirror ships its own markup here; these rules only re-skin it so it
-   does not look like a different application bolted into the window. */
+/* CodeMirror ships its own markup AND its own light baseTheme, which hardcodes
+   .cm-panels to #f5f5f5 on black text. That style element is injected into the
+   document head, so these rules must be specific enough to win -- hence the
+   doubled class. Without this the find bar stays light while everything around
+   it goes dark. */
+.cm-editor .cm-panels,
 .cm-panels {
   background: var(--nib-bg-raised);
   color: var(--nib-fg);
@@ -241,14 +261,21 @@ body {
   gap: 6px;
 }
 
-.cm-panel.cm-search label {
+.cm-panel.cm-search label,
+.cm-editor .cm-panel.cm-search label {
   display: inline-flex;
   align-items: center;
   gap: 3px;
   color: var(--nib-muted);
 }
 
-.cm-panel.cm-search input[type="text"] {
+.cm-editor .cm-panels-top,
+.cm-panels.cm-panels-top {
+  border-bottom: 1px solid var(--nib-rule);
+}
+
+.cm-panel.cm-search input[type="text"],
+.cm-editor .cm-panel.cm-search input[type="text"] {
   font-family: var(--nib-sans);
   font-size: 12px;
   padding: 3px 7px;
@@ -264,7 +291,8 @@ body {
   border-color: var(--nib-accent);
 }
 
-.cm-panel.cm-search button {
+.cm-panel.cm-search button,
+.cm-editor .cm-panel.cm-search button {
   font-family: var(--nib-sans);
   font-size: 12px;
   padding: 3px 9px;

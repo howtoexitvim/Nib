@@ -54,6 +54,19 @@ struct Appearance: Equatable {
         }
     }
 
+    /// The window's background, matching the page's --nib-bg exactly.
+    ///
+    /// `.textBackgroundColor` is close but not equal (#FFFFFF / #1E1E1E against
+    /// the page's #fdfdfc / #1e1e1e), so the native frame and the web content
+    /// met at a visible seam while the page was still loading or during a
+    /// resize. Resolved via `bestMatch` rather than a name switch, so the
+    /// accessibility high-contrast appearances map correctly too.
+    nonisolated static let paper = NSColor(name: "nibPaper") { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            ? NSColor(srgbRed: 0x1e / 255, green: 0x1e / 255, blue: 0x1e / 255, alpha: 1)
+            : NSColor(srgbRed: 0xfd / 255, green: 0xfd / 255, blue: 0xfc / 255, alpha: 1)
+    }
+
     var theme: Theme = .system
     var family: FontFamily = .serif
     var fontSize: Int = 17

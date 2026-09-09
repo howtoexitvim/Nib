@@ -54,7 +54,9 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         // window the way Typora's does, rather than as two differently
         // coloured halves meeting at the split divider.
         window.titlebarAppearsTransparent = false
-        window.backgroundColor = .textBackgroundColor
+        // Not .textBackgroundColor: it is close to the page's --nib-bg but not
+        // equal, so the native frame and the web content met at a visible seam.
+        window.backgroundColor = Appearance.paper
         window.isMovableByWindowBackground = true
         window.minSize = NSSize(width: 640, height: 400)
         // No native window tabs. The sidebar is already the navigation
@@ -118,11 +120,11 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
             self?.selectFile(url)
         }
         sidebar.attach(menu: makeContextMenu())
-        // Queued until the page loads, so the saved look is in place before
-        // anything is shown rather than flashing the default first. The window
-        // chrome is set directly, since it needs no page.
-        editor.applyAppearance(appearance)
-        window.appearance = appearance.theme.nsAppearance
+        // Through applyAppearance, not by assigning the window directly: the
+        // app-level appearance has to be set on the launch path too, or every
+        // detached panel and the Settings window follow the OS until the user
+        // happens to change the theme.
+        applyAppearance()
         sidebarContainer.outline.onSelect = { [weak self] heading in
             self?.editor.scrollToLine(heading.line)
         }
@@ -543,6 +545,13 @@ final class WorkspaceWindowController: NSWindowController, NSWindowDelegate, NSM
         // The sidebar, titlebar and menus are AppKit, not web content: setting
         // CSS variables does nothing for them, which is why the sidebar stayed
         // light when the editor went dark.
+        //
+        // NSApp, not just the window: a detached NSOpenPanel (runModal, no
+        // sheet), a runModal alert, the menu bar, and the Settings window all
+        // follow the application's appearance rather than this window's, so
+        // without the app-level value they keep following the OS while the
+        // editor goes dark.
+        NSApp.appearance = appearance.theme.nsAppearance
         window?.appearance = appearance.theme.nsAppearance
     }
 

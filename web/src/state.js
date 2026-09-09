@@ -8,7 +8,7 @@
  * disk. Cross-file undo is not offered, because without a document model it is
  * a corruption vector.
  */
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, drawSelection, highlightActiveLine, keymap, rectangularSelection } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -40,7 +40,22 @@ const proseHighlight = HighlightStyle.define([
   { tag: tags.list, color: "var(--nib-accent)" },
 ]);
 
-const editorTheme = EditorView.theme({
+/**
+ * Whether CodeMirror should use its dark baseTheme.
+ *
+ * This is the one thing a CSS variable cannot do. CodeMirror ships a light
+ * baseTheme that hardcodes `.cm-panels` to #f5f5f5 on black, and the flag
+ * selecting the dark one is baked into the theme extension when it is built --
+ * so switching it needs a reconfigurable compartment, unlike every other
+ * appearance setting here.
+ */
+export const themeCompartment = new Compartment();
+
+function makeEditorTheme(dark) {
+  return EditorView.theme(themeSpec, { dark });
+}
+
+const themeSpec = {
   "&": {
     height: "100%",
     fontSize: "var(--nib-font-size)",
@@ -69,7 +84,12 @@ const editorTheme = EditorView.theme({
     backgroundColor: "var(--nib-selection)",
   },
   ".nib-ghost": { color: "var(--nib-faint)", fontStyle: "italic" },
-});
+};
+
+/** Rebuilds the theme for a light/dark switch. */
+export function editorThemeFor(dark) {
+  return makeEditorTheme(dark);
+}
 
 /**
  * @param {string} doc initial text
@@ -77,6 +97,13 @@ const editorTheme = EditorView.theme({
  *   to the document because a remembered position can outlive an external edit
  * @param {Array} [extra] extensions the caller adds, e.g. the dirty listener
  */
+/** Whether the page is currently rendering dark, however that was decided. */
+export function prefersDark() {
+  const explicit = document.documentElement.getAttribute("data-theme");
+  if (explicit) return explicit === "dark";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
 export function makeState(doc, selection, extra = []) {
   const max = doc.length;
   const anchor = Math.min(selection?.anchor ?? 0, max);
@@ -93,7 +120,7 @@ export function makeState(doc, selection, extra = []) {
       EditorView.lineWrapping,
       markdown(),
       syntaxHighlighting(proseHighlight),
-      editorTheme,
+      themeCompartment.of(makeEditorTheme(prefersDark())),
       ghostWriting(requestCompletion),
       imagePaste(),
       // The panel is CodeMirror's own, styled through the same CSS variables

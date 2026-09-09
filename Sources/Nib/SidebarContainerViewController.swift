@@ -35,8 +35,11 @@ final class SidebarContainerViewController: NSViewController {
 
         container.translatesAutoresizingMaskIntoConstraints = false
 
-        header.font = .systemFont(ofSize: 10, weight: .semibold)
-        header.textColor = .tertiaryLabelColor
+        // The only hardcoded point size in the app was here; every other label
+        // derives from smallSystemFontSize, and tertiary is too faint to read
+        // against the sidebar's vibrant material.
+        header.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
+        header.textColor = .secondaryLabelColor
         header.lineBreakMode = .byTruncatingTail
         header.translatesAutoresizingMaskIntoConstraints = false
 

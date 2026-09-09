@@ -45,6 +45,20 @@ final class EditorViewController: NSViewController {
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         ))
+        // The saved theme, injected before the page runs anything.
+        //
+        // applyAppearance goes through callJS, which queues until didFinish --
+        // long after first paint -- so a dark-mode user saw a white flash on
+        // every launch. A document-start user script sets the attribute the
+        // stylesheet keys off before any CSS is applied.
+        let theme = Appearance.load().theme
+        if theme != .system {
+            controller.addUserScript(WKUserScript(
+                source: "document.documentElement.setAttribute('data-theme', '\(theme.rawValue)');",
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            ))
+        }
         config.userContentController = controller
         // Serves the open document's images to the preview. Registered on the
         // configuration, which is why it has to be set before the WebView is
