@@ -1,6 +1,18 @@
-# Nib（实现仓库）
+# Nib
 
 macOS 极简 Markdown 编辑器。原生 Swift 外壳 + WKWebView + CodeMirror 6。
+
+带 **ghost writing**：在句末、换行、新列表项这些语义边界上，用你自己配置的 LLM 给出灰色续写建议，Tab 接受，Esc 忽略。API key 存 Keychain，请求在 Swift 侧发出。
+
+## 安装
+
+从 [releases](../../releases) 下载 zip，解压后把 `Nib.app` 拖进 Applications。构建未签名，首次打开需要：
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Nib.app
+```
+
+或者自己从源码构建（见下），只需要 Swift 工具链和 Node，不需要 Xcode 工程。
 
 ## 构建
 
@@ -68,7 +80,7 @@ web/src/
 
 ## Ghost writing
 
-触发策略见 `../docs/ghost-writing.md`。要点：
+触发策略要点：
 
 - 只在**语义边界**触发（句末、子句末、换行、新列表项），不是每个键。含中文全角标点。
 - 删除、撤销、重做、多光标、有选区时**不触发**。
@@ -77,44 +89,15 @@ web/src/
 
 **API key 存 Keychain，网络请求在 Swift 侧发出**，key 不进 JS 上下文。
 
-## 用本地 Qwen 测 ghost writing
+## 配置补全服务
 
-H800 上跑着 vLLM，实测可用。**服务只监听 127.0.0.1，所以需要 SSH 隧道。**
+Settings 里填 Provider、Base URL、Model、API key 四项。
 
-```bash
-# 1. 开隧道，保持这个终端不关
-ssh -N -L 8100:127.0.0.1:8100 h800
+用官方 API 就选 Anthropic 或 OpenAI，Base URL 留默认。用自托管服务（vLLM / Ollama / LM Studio）选 **OpenAI**，Base URL 指向你的 endpoint，例如 `http://127.0.0.1:8000/v1`；服务没开鉴权时 key 可以留空，开了就必须填，否则返回 `Unauthorized`。
 
-# 2. 拿 key（它在 vllm 进程的环境变量里，不在任何配置文件里）
-ssh h800 "tr '\0' '\n' < /proc/\$(pgrep -f 'vllm serve' | head -1)/environ | grep '^VLLM_API_KEY=' | cut -d= -f2"
-```
+实测自托管 Qwen3 27B 的表现：冷启动首次约 8s，之后每次 0.1–0.3s，远小于 500ms 防抖。中文续中文、列表里出列表项、句子中间接句子中间都正确。
 
-然后在 Nib 的 Settings 里填：
-
-| 字段 | 值 |
-|---|---|
-| Provider | **OpenAI**（vLLM 说的是 OpenAI 协议） |
-| Base URL | `http://127.0.0.1:8100/v1` |
-| Model | `qwen3.8-27b` |
-| API key | 上面那条命令输出的字符串 |
-
-**key 不能留空。** 这个部署开了鉴权，空 key 会返回 `{"error":"Unauthorized"}`。
-
-实测输出（就是 Nib 真正会发的那个 prompt）：
-
-```
-英文散文   7.8s  →  "you write in plain Markdown and see the rendered
-                     result instantly, with no distractions or complex UI."
-中文散文   0.3s  →  "阳光透过玻璃窗洒在桌面上，看着街上来来往往的人，心里觉得格外平静。"
-列表项     0.2s  →  "- 检查并修复标题栏的样式问题"
-句子中间   0.1s  →  "source of truth"
-```
-
-中文续中文、列表里出列表项、句子中间接句子中间——都对。首次请求 7.8s 是冷启动，之后 0.1-0.3s，远小于 500ms 防抖。
-
-**一个必须的请求参数：** 这个模型带 `--reasoning-parser qwen3`，vLLM 会把思考链放进 `reasoning` 字段并让 `content` 是 `null`——短补全的 token 预算会全花在思考上，ghost text 什么也拿不到。所以请求体里带了 `chat_template_kwargs: {"enable_thinking": false}`。OpenAI 官方 API 会忽略不认识的顶层字段，所以这个参数对它无害。
-
-服务端信息（2026-09-09 实机核验）：`Qwen3.8-27B`，2×H800 tensor-parallel，`max-model-len` 262144，vLLM 0.27.1。
+**带 reasoning parser 的模型要注意**：vLLM 挂 `--reasoning-parser` 时会把思考链放进 `reasoning` 字段而让 `content` 为 `null`,短补全的 token 预算会全花在思考上,ghost text 什么也拿不到。所以请求体里固定带了 `chat_template_kwargs: {"enable_thinking": false}`。OpenAI 官方 API 会忽略不认识的顶层字段,对它无害。
 
 ## 协议支持
 
@@ -140,3 +123,7 @@ Swift 侧：响应清洗、endpoint 拼装、文件可见性与排序、`.assets
 JS 侧：ghost text 触发规则（含中文标点、防误触发）、字数统计（中文按字符、排除代码）、图片路径重写、格式化字符串变换、大纲解析。
 
 `wordcount.js`、`format.js`、`outline.js`、`preview.js` 都不依赖 CodeMirror，所以测试直接 import 真实实现。`ghost.js` 做不到（它是 CM 扩展），那边用一条测试校验规则一致，防止文档与实现漂移。
+
+## License
+
+[MIT](LICENSE)
