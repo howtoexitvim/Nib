@@ -1,6 +1,7 @@
 .build/
 build/
 web/dist/
+dist/
 web/node_modules/
 .DS_Store
 *.log
