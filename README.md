@@ -1,128 +1,99 @@
+<div align="center">
+
 # Nib
 
-macOS 极简 Markdown 编辑器。原生 Swift 外壳 + WKWebView + CodeMirror 6。
+[English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-带 **ghost writing**：在句末、换行、新列表项这些语义边界上，用你自己配置的 LLM 给出灰色续写建议，Tab 接受，Esc 忽略。API key 存 Keychain，请求在 Swift 侧发出。
+![Platform](https://img.shields.io/badge/platform-macOS-111827?logo=apple&logoColor=white)
+![Type](https://img.shields.io/badge/type-Markdown%20Editor-2563eb)
+![Size](https://img.shields.io/badge/size-1.4MB-059669)
 
-## 安装
+</div>
 
-从 [releases](../../releases) 下载 zip，解压后把 `Nib.app` 拖进 Applications。构建未签名，首次打开需要：
+Nib is a minimal Markdown editor for macOS: a native Swift shell around a single WKWebView running CodeMirror 6.
+
+It has **ghost writing**. At semantic boundaries — the end of a sentence, a new line, a new list item — your own LLM proposes a grey continuation. Tab accepts, Esc dismisses. You configure the provider; nothing is built in.
+
+The API key lives in the Keychain and requests are issued from Swift, so the key never enters the JavaScript context.
+
+## Install
+
+Download the zip from the [releases page](https://github.com/howtoexitvim/Nib/releases), unzip it, and drag `Nib.app` into `/Applications`. The build is ad-hoc signed and not notarized, so clear the quarantine flag once:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Nib.app
 ```
 
-或者自己从源码构建（见下），只需要 Swift 工具链和 Node，不需要 Xcode 工程。
+Apple silicon (arm64) only. Latest release is **v0.1.0**.
 
-## 构建
+Or build from source — it only needs a Swift toolchain and Node.
+
+## Build
 
 ```bash
-make        # 构建 web bundle 和 build/Nib.app
-make run    # 构建并启动
-make test   # Swift 测试 + JS 测试
+make        # build the web bundle and build/Nib.app
+make run    # build and launch
+make test   # Swift tests + JS tests
 make clean
 ```
 
-不需要 Xcode 工程：`swift build` 出二进制，Makefile 手工组装 .app,全程命令行可复现。
+There is no Xcode project. `swift build` produces the binary and the Makefile assembles the `.app` by hand, so the whole thing is reproducible from the command line.
 
-产物约 **1.4MB**（Typora 46MB，Electron 应用通常 150-250MB）。
+The result is about **1.4MB** (Typora is 46MB; Electron apps are typically 150-250MB).
 
-## 结构
+## Two modes
 
-```text
-Sources/Nib/
-  AppDelegate.swift                   应用入口、菜单动作
-  MenuBuilder.swift                   菜单栏（动作走 responder chain）
-  WorkspaceWindowController.swift     唯一的窗口：当前文件、保存生命周期、菜单校验
-  SidebarContainerViewController.swift 侧边栏容器（Files / Outline / Search）
-  SidebarViewController.swift         文件树（NSOutlineView）
-  OutlineViewController.swift         标题大纲
-  SearchViewController.swift          跨文件搜索界面
-  EditorViewController.swift          WKWebView 宿主 + JS 桥（全应用只有一个）
-  Workspace.swift                     文件夹与懒加载的树；增删改都在这里
-  FileNode.swift                      树节点 + 可见性/排序规则（纯函数）
-  WorkspaceStore.swift                上次的文件夹与文件（security-scoped bookmark）
-  ImageStore.swift                    粘贴的图片：类型嗅探、TIFF 转码、命名
-  AssetSchemeHandler.swift            nib-asset:// 把本地图片喂给预览
-  FileSearchService.swift             跨文件搜索（actor + AsyncStream）
-  Appearance.swift                    主题与排版
-  CompletionService.swift             补全请求（Anthropic / OpenAI 两种协议）
-  Provider.swift                      provider 配置与 endpoint 拼装
-  Keychain.swift                      API key 存取
-  SettingsWindowController.swift      设置窗口
+Source mode is CodeMirror. Preview mode is a read-only render. **The source is the only truth; the preview is a projection.** `Cmd+/` toggles between them — the shortcut is bound on the window, so it works in both.
 
-web/src/
-  main.js       编辑器入口、两种模式切换
-  state.js      EditorState 工厂（切换文件要重建 state，见下）
-  ghost.js      ghost text 扩展（触发策略、Tab 接受、Esc 忽略）
-  commands.js   菜单命令派发表
-  format.js     加粗/斜体/链接/标题（纯字符串变换 + CM 命令）
-  outline.js    标题解析
-  wordcount.js  字数统计（中文按字符计，不依赖 CodeMirror）
-  preview.js    渲染与图片路径重写
-  paste.js      粘贴图片
-  theme.js      外观设置
-  bridge.js     与 Swift 通信
-  editor.css    视觉系统
-```
-
-**一个窗口，一个 WebView。** 每个 `WKWebView` 是独立 content process（30-60MB），一个文件一个窗口在几百个文件的笔记库里撑不住。切换文件是换内容。
-
-**切换文件重建 `EditorState`，不是 dispatch transaction。** transaction 会保留 undo history：A 切到 B 后按 ⌘Z 会把 A 的文本拉进 B，下次保存就写坏了 B。代价是没有跨文件 undo。
-
-**树是懒加载的。** 完整递归遍历一个真实笔记目录（6,165 个目录 / 1,599 个 md）实测 0.81 秒，放在开窗路径上是肉眼可见的卡顿；只读一层是 2ms。
-
-## 两个模式
-
-源码模式是 CodeMirror，预览模式是只读渲染。**源码是唯一真相,预览是投影。** `Cmd+/` 切换（快捷键绑在 window 上，两种模式下都生效）。
-
-预览不可编辑、无输入处理，所以 ghost text 在渲染模式下**没有代码路径可以触发** —— 这不是靠 if 判断关掉的，是结构上不存在。
+The preview is not editable and handles no input, so ghost text has **no code path** to fire in preview mode. That is structural, not an `if` check.
 
 ## Ghost writing
 
-触发策略要点：
+- Fires only at **semantic boundaries** — end of sentence, end of clause, newline, new list item — not on every keystroke. Full-width CJK punctuation counts.
+- Never fires on delete, undo, redo, multiple cursors, or a non-empty selection.
+- 500ms debounce, 4000 characters of context on each side (fill-in-the-middle), cached by `(prefix, suffix)`.
+- Tab accepts, Esc dismisses. Typing on stays aligned with the suggestion and advances through it.
 
-- 只在**语义边界**触发（句末、子句末、换行、新列表项），不是每个键。含中文全角标点。
-- 删除、撤销、重做、多光标、有选区时**不触发**。
-- 500ms 防抖，前后各 4000 字符上下文（fill-in-the-middle），按 `(prefix, suffix)` 缓存。
-- Tab 接受，Esc 忽略，继续打字若与建议一致则保留并前移。
+## Configuring completions
 
-**API key 存 Keychain，网络请求在 Swift 侧发出**，key 不进 JS 上下文。
+Settings takes four fields: Provider, Base URL, Model, API key.
 
-## 配置补全服务
+For the official APIs, pick Anthropic or OpenAI and leave the Base URL at its default.
 
-Settings 里填 Provider、Base URL、Model、API key 四项。
+For a self-hosted OpenAI-compatible server (vLLM, Ollama, LM Studio), pick **OpenAI** and point the Base URL at your endpoint, for example `http://127.0.0.1:8000/v1`. If the server has no auth the key can be left blank; if it does, the key is required or you get `Unauthorized`.
 
-用官方 API 就选 Anthropic 或 OpenAI，Base URL 留默认。用自托管服务（vLLM / Ollama / LM Studio）选 **OpenAI**，Base URL 指向你的 endpoint，例如 `http://127.0.0.1:8000/v1`；服务没开鉴权时 key 可以留空，开了就必须填，否则返回 `Unauthorized`。
+**A note on reasoning models.** When vLLM runs with `--reasoning-parser`, the chain of thought goes into a `reasoning` field and `content` comes back `null` — a short completion's token budget is spent entirely on thinking and ghost text receives nothing. So the request body always carries `chat_template_kwargs: {"enable_thinking": false}`. The official OpenAI API ignores unknown top-level fields, so it is harmless there.
 
-实测自托管 Qwen3 27B 的表现：冷启动首次约 8s，之后每次 0.1–0.3s，远小于 500ms 防抖。中文续中文、列表里出列表项、句子中间接句子中间都正确。
+Only two protocols are supported: **Anthropic** and **OpenAI**. The latter is what vLLM, Ollama and LM Studio expose, so local models need no extra code — just point the base URL at them.
 
-**带 reasoning parser 的模型要注意**：vLLM 挂 `--reasoning-parser` 时会把思考链放进 `reasoning` 字段而让 `content` 为 `null`,短补全的 token 预算会全花在思考上,ghost text 什么也拿不到。所以请求体里固定带了 `chat_template_kwargs: {"enable_thinking": false}`。OpenAI 官方 API 会忽略不认识的顶层字段,对它无害。
+## Design notes
 
-## 协议支持
+**One window, one WebView.** Each `WKWebView` is its own content process (30-60MB). One window per file does not survive a vault with hundreds of files, so switching files swaps the content instead.
 
-只支持两种官方协议：**Anthropic** 和 **OpenAI**。后者是 vLLM、Ollama、LM Studio 等自托管服务暴露的接口，所以本地模型不需要额外代码 —— 在设置里把 base URL 指过去、key 留空即可。
+**Switching files rebuilds `EditorState` rather than dispatching a transaction.** A transaction keeps the undo history: after A → B, `Cmd+Z` would pull A's text into B and the next save would corrupt B. The cost is no cross-file undo.
 
-## 图片
+**The file tree is lazy.** A full recursive walk of a real notes directory (6,165 folders / 1,599 `.md` files) measured 0.81s — visible jank on the window-opening path. Reading one level is 2ms.
 
-粘贴的图片写进 `<文档名>.assets/`（Typora 约定），链接是相对路径 —— 目录整体搬走、同步、分享，链接都还在。Typora 的另一个选项是绝对路径指向 `~/Library/Application Support/typora-user-images/`，文件一旦离开这台机器就断。
+**Images go into `<document>.assets/`** (the Typora convention) and are linked by relative path, so the folder can be moved, synced or shared and the links still resolve. The type is sniffed from the **bytes**, not from what the clipboard claims — the two disagree often enough, and the extension has to match the real content or nothing renders. macOS screenshots arrive as TIFF and are converted to PNG.
 
-类型靠**字节**嗅探，不信剪贴板声称的类型：两者并不总是一致，而扩展名必须和真实内容匹配否则什么都渲染不出来。macOS 截图是 TIFF，会转成 PNG —— TIFF 出了苹果生态基本没法看。
+Preview images are served over `nib-asset://`, with Swift reading the bytes. Relative paths would otherwise resolve against the bundle, and the page's read permission only covers the bundle's `web/`. A `<base>` tag is not an option — it would rewrite `./editor.css` and `./editor.js` too, and the app simply would not open. Requests are confined to the document's own directory: links are page content, and page content is not trusted.
 
-预览里的图片走 `nib-asset://` 由 Swift 读字节。相对路径本来是相对 bundle 解析的，而且页面的读权限只给了 bundle 的 `web/`，两个问题都得解决。**不能用 `<base>` 标签** —— 它会同时重写 `./editor.css` 和 `./editor.js`，app 直接打不开。请求限制在文档所在目录内：链接是页面内容，页面内容不可信。
-
-## 测试
+## Tests
 
 ```
-swift test           81 个
-cd web && npm test   75 个
+swift test           81 tests
+cd web && npm test   75 tests
 ```
 
-Swift 侧：响应清洗、endpoint 拼装、文件可见性与排序、`.assets` 路径推导、重命名/新建的命名校验、图片类型嗅探与命名冲突、`nib-asset://` 的路径穿越拒绝、外观设置往返、跨文件搜索。
+Swift covers response cleanup, endpoint assembly, file visibility and sorting, `.assets` path derivation, rename/create name validation, image type sniffing and name collisions, `nib-asset://` path-traversal rejection, appearance round-trips, and cross-file search.
 
-JS 侧：ghost text 触发规则（含中文标点、防误触发）、字数统计（中文按字符、排除代码）、图片路径重写、格式化字符串变换、大纲解析。
+JS covers ghost text trigger rules (including CJK punctuation and false-trigger guards), word counting (CJK counted by character, code excluded), image path rewriting, formatting string transforms, and outline parsing.
 
-`wordcount.js`、`format.js`、`outline.js`、`preview.js` 都不依赖 CodeMirror，所以测试直接 import 真实实现。`ghost.js` 做不到（它是 CM 扩展），那边用一条测试校验规则一致，防止文档与实现漂移。
+`wordcount.js`, `format.js`, `outline.js` and `preview.js` do not depend on CodeMirror, so their tests import the real implementations. `ghost.js` cannot — it is a CM extension — so one test there checks the rules stay in sync and keeps the docs from drifting from the code.
+
+## Project
+
+Project home: https://github.com/howtoexitvim/Nib
 
 ## License
 
